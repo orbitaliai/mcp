@@ -4,6 +4,14 @@
   "description": "Orbitali MCP server for configuring voice agents from coding agents.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/orbitaliai/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/orbitaliai/mcp/issues"
+  },
+  "homepage": "https://github.com/orbitaliai/mcp#readme",
   "bin": {
     "orbitali-mcp": "dist/index.js"
   },
