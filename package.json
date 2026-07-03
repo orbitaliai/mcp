@@ -1,0 +1,36 @@
+{
+  "name": "@orbitali/mcp",
+  "version": "0.1.0",
+  "description": "Orbitali MCP server for configuring voice agents from coding agents.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "orbitali-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "bun src/index.ts",
+    "start": "bun dist/index.js",
+    "build": "rm -rf dist && bun build src/index.ts --outdir dist --target bun && tsc -p tsconfig.build.json",
+    "prepack": "bun run build",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.3",
+    "typescript": "^5.9.3"
+  }
+}
