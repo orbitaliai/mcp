@@ -2,6 +2,7 @@ import {
   agentCreateServerFieldsSchema,
   agentPromptFieldsBaseSchema,
   agentToolInputSchema,
+  createKnowledgeDocumentRequestSchema,
   patchAgentRequestSchema
 } from "./types";
 import { z } from "zod";
@@ -16,6 +17,14 @@ import { z } from "zod";
  */
 
 const agentIdSchema = z.uuid().describe("The Orbitali agent id (UUID).");
+const knowledgeFilePathSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((value) => /\.(txt|md|pdf)$/i.test(value), {
+    message: "Knowledge file must be a .txt, .md, or .pdf file"
+  })
+  .describe("Local path to a .txt, .md, or .pdf file to upload as multipart/form-data.");
 
 export const listAgentToolsInputSchema = z.object({
   agentId: agentIdSchema
@@ -43,9 +52,45 @@ export const createRealtimeSessionInputSchema = z.object({
   agentId: agentIdSchema
 });
 
+export const listKnowledgeDocumentsInputSchema = z.object({
+  agentId: agentIdSchema
+});
+
+export const uploadKnowledgeDocumentInputSchema = z
+  .object({
+    agentId: agentIdSchema,
+    name: createKnowledgeDocumentRequestSchema.shape.name,
+    description: createKnowledgeDocumentRequestSchema.shape.description,
+    content: createKnowledgeDocumentRequestSchema.shape.content.optional().describe("Document text or Markdown to upload as JSON."),
+    filePath: knowledgeFilePathSchema.optional()
+  })
+  .superRefine((value, context) => {
+    if (value.content && value.filePath) {
+      context.addIssue({
+        code: "custom",
+        path: ["filePath"],
+        message: "Provide either content or filePath, not both"
+      });
+    }
+
+    if (!value.content && !value.filePath) {
+      context.addIssue({
+        code: "custom",
+        path: ["content"],
+        message: "Provide content or filePath"
+      });
+    }
+  });
+
+export const deleteKnowledgeDocumentInputSchema = z.object({
+  agentId: agentIdSchema,
+  documentId: z.uuid().describe("The Orbitali knowledge document id (UUID).")
+});
+
 export type GetOrCreateAgentInput = z.infer<typeof getOrCreateAgentInputSchema>;
 export type PatchAgentInput = z.infer<typeof patchAgentInputSchema>;
 export type EnsureAgentToolsInput = z.infer<typeof ensureAgentToolsInputSchema>;
+export type UploadKnowledgeDocumentInput = z.infer<typeof uploadKnowledgeDocumentInputSchema>;
 
 export function duplicateToolNameMessages(tools: EnsureAgentToolsInput["tools"]): string[] {
   const seen = new Map<string, number>();

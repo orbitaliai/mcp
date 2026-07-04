@@ -5,19 +5,25 @@ import type { OrbitaliClient } from "./client";
 import { OrbitaliApiError } from "./client";
 import {
   createRealtimeSessionInputSchema,
+  deleteKnowledgeDocumentInputSchema,
   ensureAgentToolsInputSchema,
   getOrCreateAgentInputSchema,
+  listKnowledgeDocumentsInputSchema,
   listAgentToolsInputSchema,
   patchAgentInputSchema,
+  uploadKnowledgeDocumentInputSchema,
   duplicateToolNameMessages
 } from "./schemas";
 import {
   createRealtimeSession,
+  deleteKnowledgeDocument,
   ensureAgentTools,
   getOrCreateAgent,
+  listKnowledgeDocuments,
   listAgentTools,
   listAgents,
-  patchAgent
+  patchAgent,
+  uploadKnowledgeDocument
 } from "./workflows";
 
 export const SERVER_NAME = "orbitali";
@@ -86,6 +92,37 @@ export function createServer(client: OrbitaliClient): McpServer {
       }
       return ensureAgentTools(client, input);
     })
+  );
+
+  server.registerTool(
+    "list_knowledge_documents",
+    {
+      title: "List knowledge documents",
+      description: "List the knowledge documents configured on a specific agent.",
+      inputSchema: listKnowledgeDocumentsInputSchema
+    },
+    ({ agentId }) => runTool(() => listKnowledgeDocuments(client, agentId))
+  );
+
+  server.registerTool(
+    "upload_knowledge_document",
+    {
+      title: "Upload knowledge document",
+      description:
+        "Upload document text or a local .txt, .md, or .pdf file to an agent's knowledge base for native search_knowledge retrieval.",
+      inputSchema: uploadKnowledgeDocumentInputSchema
+    },
+    (input) => runTool(() => uploadKnowledgeDocument(client, input))
+  );
+
+  server.registerTool(
+    "delete_knowledge_document",
+    {
+      title: "Delete knowledge document",
+      description: "Delete a knowledge document from a specific agent.",
+      inputSchema: deleteKnowledgeDocumentInputSchema
+    },
+    ({ agentId, documentId }) => runTool(() => deleteKnowledgeDocument(client, agentId, documentId))
   );
 
   server.registerTool(
