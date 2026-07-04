@@ -38,17 +38,12 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
+      - name: Update npm
+        # OIDC trusted publishing requires npm >= 11.5.1; Node 22 ships an older npm.
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      - name: Verify npm token
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "${NODE_AUTH_TOKEN}" ]; then
-            echo "::error::Set the NPM_TOKEN repository secret to an npm automation token with publish access to @orbitali/mcp."
-            exit 1
-          fi
 
       - name: Typecheck
         run: bun run typecheck
@@ -61,8 +56,6 @@ jobs:
 
       - name: Resolve release version
         id: version
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -83,9 +76,9 @@ jobs:
           fi
 
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+        # Authenticates via OIDC trusted publisher (orbitaliai/mcp -> publish.yml).
+        # No NPM_TOKEN needed; provenance is attached automatically.
+        run: npm publish --access public
 
       - name: Summary
         run: echo "Published @orbitali/mcp@${{ steps.version.outputs.version }}"
