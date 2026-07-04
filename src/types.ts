@@ -100,6 +100,26 @@ export type AgentTool = z.infer<typeof agentToolSchema>;
 export const agentToolInputSchema = agentToolSchema.omit({ id: true });
 export type AgentToolInput = z.infer<typeof agentToolInputSchema>;
 
+export const knowledgeDocumentSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+  description: z.string().nullable(),
+  type: z.string().min(1),
+  sizeBytes: z.number().int().nonnegative(),
+  status: z.string().min(1),
+  error: z.string().nullable(),
+  chunkCount: z.number().int().nonnegative(),
+  createdAt: z.iso.datetime()
+});
+export type KnowledgeDocument = z.infer<typeof knowledgeDocumentSchema>;
+
+export const createKnowledgeDocumentRequestSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120).optional(),
+  description: z.string().trim().max(500).nullable().optional(),
+  content: z.string().min(1, "Content is required").max(1_000_000)
+});
+export type CreateKnowledgeDocumentRequest = z.infer<typeof createKnowledgeDocumentRequestSchema>;
+
 export const agentPhoneNumberAssignmentSchema = z.object({
   phoneNumberId: z.uuid(),
   handoffPhoneNumber: z.string().trim().max(32).nullable().optional()

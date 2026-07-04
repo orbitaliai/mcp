@@ -1,5 +1,13 @@
 import type { OrbitaliMcpConfig } from "./config";
-import type { Agent, AgentTool, AgentToolInput, CreateAgentRequest, PatchAgentRequest } from "./types";
+import type {
+  Agent,
+  AgentTool,
+  AgentToolInput,
+  CreateAgentRequest,
+  CreateKnowledgeDocumentRequest,
+  KnowledgeDocument,
+  PatchAgentRequest
+} from "./types";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 const defaultRequestTimeoutMs = 30_000;
@@ -23,6 +31,18 @@ export class OrbitaliApiError extends Error {
 
 interface CreatedResponse {
   id: string;
+}
+
+export interface CreatedKnowledgeDocumentResponse extends CreatedResponse {
+  name: string;
+  description: string | null;
+}
+
+export interface KnowledgeFileUpload {
+  fileName: string;
+  file: Blob;
+  name?: string;
+  description?: string | null;
 }
 
 export interface RealtimeSessionResponse {
@@ -72,6 +92,38 @@ export class OrbitaliClient {
     return this.request<CreatedResponse>("POST", `/public/v1/agents/${encodeURIComponent(agentId)}/tools`, body);
   }
 
+  listKnowledgeDocuments(agentId: string): Promise<KnowledgeDocument[]> {
+    return this.request<KnowledgeDocument[]>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/knowledge`);
+  }
+
+  uploadKnowledgeText(agentId: string, body: CreateKnowledgeDocumentRequest): Promise<CreatedKnowledgeDocumentResponse> {
+    return this.request<CreatedKnowledgeDocumentResponse>("POST", `/public/v1/agents/${encodeURIComponent(agentId)}/knowledge`, body);
+  }
+
+  uploadKnowledgeFile(agentId: string, upload: KnowledgeFileUpload): Promise<CreatedKnowledgeDocumentResponse> {
+    const formData = new FormData();
+    formData.set("file", upload.file, upload.fileName);
+    if (upload.name !== undefined) {
+      formData.set("name", upload.name);
+    }
+    if (upload.description !== undefined && upload.description !== null) {
+      formData.set("description", upload.description);
+    }
+
+    return this.request<CreatedKnowledgeDocumentResponse>(
+      "POST",
+      `/public/v1/agents/${encodeURIComponent(agentId)}/knowledge`,
+      formData
+    );
+  }
+
+  deleteKnowledgeDocument(agentId: string, documentId: string): Promise<CreatedResponse> {
+    return this.request<CreatedResponse>(
+      "DELETE",
+      `/public/v1/agents/${encodeURIComponent(agentId)}/knowledge/${encodeURIComponent(documentId)}`
+    );
+  }
+
   createRealtimeSession(agentId: string): Promise<RealtimeSessionResponse> {
     return this.request<RealtimeSessionResponse>("POST", `/public/v1/agents/${encodeURIComponent(agentId)}/realtime-sessions`);
   }
@@ -84,7 +136,9 @@ export class OrbitaliClient {
 
     const init: RequestInit = { method, headers };
 
-    if (body !== undefined) {
+    if (body instanceof FormData) {
+      init.body = body;
+    } else if (body !== undefined) {
       headers["Content-Type"] = "application/json";
       init.body = JSON.stringify(body);
     }

@@ -1,6 +1,17 @@
+import { readFile, stat } from "node:fs/promises";
+import { basename } from "node:path";
 import { OrbitaliApiError, type OrbitaliClient, type RealtimeSessionResponse } from "./client";
-import type { EnsureAgentToolsInput, GetOrCreateAgentInput, PatchAgentInput } from "./schemas";
-import { createAgentRequestSchema, type Agent, type AgentTool, type CreateAgentRequest } from "./types";
+import type { EnsureAgentToolsInput, GetOrCreateAgentInput, PatchAgentInput, UploadKnowledgeDocumentInput } from "./schemas";
+import {
+  createAgentRequestSchema,
+  createKnowledgeDocumentRequestSchema,
+  type Agent,
+  type AgentTool,
+  type CreateAgentRequest,
+  type KnowledgeDocument
+} from "./types";
+
+const maxKnowledgeDocumentFileBytes = 1_000_000;
 
 export interface GetOrCreateAgentResult {
   agentId: string;
@@ -32,6 +43,10 @@ export function listAgents(client: OrbitaliClient): Promise<Agent[]> {
 
 export function listAgentTools(client: OrbitaliClient, agentId: string): Promise<AgentTool[]> {
   return client.listAgentTools(agentId);
+}
+
+export function listKnowledgeDocuments(client: OrbitaliClient, agentId: string): Promise<KnowledgeDocument[]> {
+  return client.listKnowledgeDocuments(agentId);
 }
 
 /**
@@ -100,6 +115,41 @@ export async function ensureAgentTools(client: OrbitaliClient, input: EnsureAgen
   }
 
   return { created, existing, failed };
+}
+
+export async function uploadKnowledgeDocument(
+  client: OrbitaliClient,
+  input: UploadKnowledgeDocumentInput
+): Promise<{ id: string; name: string; description: string | null }> {
+  if (input.filePath) {
+    const fileStats = await stat(input.filePath);
+    if (fileStats.size > maxKnowledgeDocumentFileBytes) {
+      throw new Error(`Knowledge file exceeds ${maxKnowledgeDocumentFileBytes} bytes`);
+    }
+
+    const fileBuffer = await readFile(input.filePath);
+    return client.uploadKnowledgeFile(input.agentId, {
+      fileName: basename(input.filePath),
+      file: new Blob([fileBuffer]),
+      name: input.name,
+      description: input.description
+    });
+  }
+
+  const request = createKnowledgeDocumentRequestSchema.parse({
+    name: input.name,
+    description: input.description,
+    content: input.content
+  });
+  return client.uploadKnowledgeText(input.agentId, request);
+}
+
+export function deleteKnowledgeDocument(
+  client: OrbitaliClient,
+  agentId: string,
+  documentId: string
+): Promise<{ id: string }> {
+  return client.deleteKnowledgeDocument(agentId, documentId);
 }
 
 export function createRealtimeSession(client: OrbitaliClient, agentId: string): Promise<RealtimeSessionResponse> {

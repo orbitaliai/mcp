@@ -5,6 +5,7 @@ agents configure Orbitali voice agents through the public REST API (`/public/v1`
 
 It wraps the API with higher-level, workflow-safe tools so an agent can create or reuse voice
 agents, avoid duplicate tools, and mint realtime sessions without hand-writing REST calls.
+It can also upload, list, and delete agent knowledge documents.
 
 v1 runs over **stdio only**. MCP protocol messages are written to stdout; all logs and diagnostics
 go to stderr.
@@ -29,6 +30,9 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `get_or_create_agent`      | Reuse an agent matching name, agentType, language, voiceName, and serverUrl, or create one.     |
 | `patch_agent`              | Update agent fields (requires `expectedUpdatedAt` for optimistic concurrency).                  |
 | `ensure_agent_tools`       | Create only the tools whose name does not already exist; existing tools are left untouched.     |
+| `list_knowledge_documents` | List the knowledge documents configured on an agent.                                            |
+| `upload_knowledge_document`| Upload document text or a local `.txt`, `.md`, or `.pdf` file to an agent knowledge base.       |
+| `delete_knowledge_document`| Delete a knowledge document from an agent.                                                      |
 | `create_realtime_session`  | Mint a short-lived realtime session (token, expiration, WebSocket URL, audio protocol).         |
 
 ## Running locally
@@ -106,6 +110,6 @@ MIT
 ## Scope (v1)
 
 Intentionally out of scope for v1: hosted HTTP / SSE / Streamable HTTP transports, OAuth,
-phone-number management, knowledge upload, billing, calls, and dashboard-only endpoints. The public
-REST API remains the source of truth; existing tools are matched by exact name, and updating existing
-tool definitions is deferred.
+phone-number management, billing, calls, and dashboard-only endpoints. The public REST API remains
+the source of truth; existing tools are matched by exact name, and updating existing tool definitions
+is deferred.

@@ -1,8 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { OrbitaliApiError, type OrbitaliClient, type RealtimeSessionResponse } from "./client";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { OrbitaliApiError, type CreatedKnowledgeDocumentResponse, type OrbitaliClient, type RealtimeSessionResponse } from "./client";
 import type { EnsureAgentToolsInput, GetOrCreateAgentInput, PatchAgentInput } from "./schemas";
-import type { Agent, AgentTool } from "./types";
-import { createRealtimeSession, ensureAgentTools, getOrCreateAgent, patchAgent } from "./workflows";
+import type { Agent, AgentTool, CreateKnowledgeDocumentRequest, KnowledgeDocument } from "./types";
+import {
+  createRealtimeSession,
+  deleteKnowledgeDocument,
+  ensureAgentTools,
+  getOrCreateAgent,
+  listKnowledgeDocuments,
+  patchAgent,
+  uploadKnowledgeDocument
+} from "./workflows";
 
 function makeAgent(overrides: Partial<Agent> = {}): Agent {
   return {
@@ -47,6 +58,21 @@ function makeTool(overrides: Partial<AgentTool> = {}): AgentTool {
   };
 }
 
+function makeKnowledgeDocument(overrides: Partial<KnowledgeDocument> = {}): KnowledgeDocument {
+  return {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "Refund policy",
+    description: null,
+    type: "markdown",
+    sizeBytes: 128,
+    status: "ready",
+    error: null,
+    chunkCount: 1,
+    createdAt: "2026-07-02T00:00:00.000Z",
+    ...overrides
+  };
+}
+
 function createAgentInput(overrides: Partial<GetOrCreateAgentInput> = {}): GetOrCreateAgentInput {
   return {
     name: "Support",
@@ -73,6 +99,9 @@ function createAgentInput(overrides: Partial<GetOrCreateAgentInput> = {}): GetOr
 interface StubCalls {
   createAgent: unknown[];
   createAgentTool: Array<{ agentId: string; name: string }>;
+  deleteKnowledgeDocument: Array<{ agentId: string; documentId: string }>;
+  uploadKnowledgeFile: Array<{ agentId: string; fileName: string; name?: string; description?: string | null; text: string }>;
+  uploadKnowledgeText: Array<{ agentId: string; body: CreateKnowledgeDocumentRequest }>;
   patchAgent: Array<{ agentId: string; body: unknown }>;
   listAgentsCount: number;
 }
@@ -84,10 +113,25 @@ function stubClient(
     createAgent: (body: unknown) => Promise<{ id: string }>;
     patchAgent: (agentId: string, body: unknown) => Promise<{ id: string }>;
     createAgentTool: (agentId: string, body: { name: string }) => Promise<{ id: string }>;
+    listKnowledgeDocuments: (agentId: string) => Promise<KnowledgeDocument[]>;
+    uploadKnowledgeText: (agentId: string, body: CreateKnowledgeDocumentRequest) => Promise<CreatedKnowledgeDocumentResponse>;
+    uploadKnowledgeFile: (
+      agentId: string,
+      upload: { fileName: string; file: Blob; name?: string; description?: string | null }
+    ) => Promise<CreatedKnowledgeDocumentResponse>;
+    deleteKnowledgeDocument: (agentId: string, documentId: string) => Promise<{ id: string }>;
     createRealtimeSession: (agentId: string) => Promise<RealtimeSessionResponse>;
   }>
 ): { client: OrbitaliClient; calls: StubCalls } {
-  const calls: StubCalls = { createAgent: [], createAgentTool: [], patchAgent: [], listAgentsCount: 0 };
+  const calls: StubCalls = {
+    createAgent: [],
+    createAgentTool: [],
+    deleteKnowledgeDocument: [],
+    uploadKnowledgeFile: [],
+    uploadKnowledgeText: [],
+    patchAgent: [],
+    listAgentsCount: 0
+  };
 
   const client = {
     listAgents: async () => {
@@ -106,6 +150,31 @@ function stubClient(
     createAgentTool: async (agentId: string, body: { name: string }) => {
       calls.createAgentTool.push({ agentId, name: body.name });
       return handlers.createAgentTool ? handlers.createAgentTool(agentId, body) : { id: `created-${body.name}` };
+    },
+    listKnowledgeDocuments: async (agentId: string) =>
+      handlers.listKnowledgeDocuments ? handlers.listKnowledgeDocuments(agentId) : [],
+    uploadKnowledgeText: async (agentId: string, body: CreateKnowledgeDocumentRequest) => {
+      calls.uploadKnowledgeText.push({ agentId, body });
+      return handlers.uploadKnowledgeText ? handlers.uploadKnowledgeText(agentId, body) : { id: "doc-1", name: "Doc", description: null };
+    },
+    uploadKnowledgeFile: async (
+      agentId: string,
+      upload: { fileName: string; file: Blob; name?: string; description?: string | null }
+    ) => {
+      calls.uploadKnowledgeFile.push({
+        agentId,
+        fileName: upload.fileName,
+        name: upload.name,
+        description: upload.description,
+        text: await upload.file.text()
+      });
+      return handlers.uploadKnowledgeFile
+        ? handlers.uploadKnowledgeFile(agentId, upload)
+        : { id: "doc-1", name: upload.name ?? "Doc", description: upload.description ?? null };
+    },
+    deleteKnowledgeDocument: async (agentId: string, documentId: string) => {
+      calls.deleteKnowledgeDocument.push({ agentId, documentId });
+      return handlers.deleteKnowledgeDocument ? handlers.deleteKnowledgeDocument(agentId, documentId) : { id: documentId };
     },
     createRealtimeSession: async (agentId: string) => {
       if (!handlers.createRealtimeSession) throw new Error("not stubbed");
@@ -286,6 +355,101 @@ describe("ensureAgentTools", () => {
       { agentId: "agent-1", name: "timeout_tool" },
       { agentId: "agent-1", name: "cancel_booking" }
     ]);
+  });
+});
+
+describe("knowledge documents", () => {
+  test("lists knowledge documents", async () => {
+    const documents = [makeKnowledgeDocument()];
+    const { client } = stubClient({ listKnowledgeDocuments: async () => documents });
+
+    const result = await listKnowledgeDocuments(client, "agent-1");
+
+    expect(result).toBe(documents);
+  });
+
+  test("uploads generated document content as JSON", async () => {
+    const { client, calls } = stubClient({
+      uploadKnowledgeText: async () => ({ id: "doc-1", name: "Refund policy", description: null })
+    });
+
+    const result = await uploadKnowledgeDocument(client, {
+      agentId: "11111111-1111-4111-8111-111111111111",
+      name: "Refund policy",
+      content: "# Refund policy"
+    });
+
+    expect(result).toEqual({ id: "doc-1", name: "Refund policy", description: null });
+    expect(calls.uploadKnowledgeText).toEqual([
+      {
+        agentId: "11111111-1111-4111-8111-111111111111",
+        body: { name: "Refund policy", content: "# Refund policy" }
+      }
+    ]);
+    expect(calls.uploadKnowledgeFile).toHaveLength(0);
+  });
+
+  test("uploads a local file as multipart data", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "orbitali-mcp-"));
+    const filePath = join(dir, "refund-policy.md");
+    await writeFile(filePath, "# Refund policy");
+
+    try {
+      const { client, calls } = stubClient({
+        uploadKnowledgeFile: async () => ({ id: "doc-1", name: "Refund policy", description: "Refund details" })
+      });
+
+      const result = await uploadKnowledgeDocument(client, {
+        agentId: "11111111-1111-4111-8111-111111111111",
+        filePath,
+        name: "Refund policy",
+        description: "Refund details"
+      });
+
+      expect(result).toEqual({ id: "doc-1", name: "Refund policy", description: "Refund details" });
+      expect(calls.uploadKnowledgeFile).toEqual([
+        {
+          agentId: "11111111-1111-4111-8111-111111111111",
+          fileName: "refund-policy.md",
+          name: "Refund policy",
+          description: "Refund details",
+          text: "# Refund policy"
+        }
+      ]);
+      expect(calls.uploadKnowledgeText).toHaveLength(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects oversized local files before upload", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "orbitali-mcp-"));
+    const filePath = join(dir, "large-policy.md");
+    await writeFile(filePath, "x".repeat(1_000_001));
+
+    try {
+      const { client, calls } = stubClient({});
+
+      await expect(
+        uploadKnowledgeDocument(client, {
+          agentId: "11111111-1111-4111-8111-111111111111",
+          filePath
+        })
+      ).rejects.toThrow("Knowledge file exceeds 1000000 bytes");
+
+      expect(calls.uploadKnowledgeFile).toHaveLength(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("deletes a knowledge document", async () => {
+    const { client, calls } = stubClient({});
+
+    const result = await deleteKnowledgeDocument(client, "agent-1", "doc-1");
+
+    expect(result).toEqual({ id: "doc-1" });
+    expect(calls.deleteKnowledgeDocument).toEqual([{ agentId: "agent-1", documentId: "doc-1" }]);
   });
 });
 
