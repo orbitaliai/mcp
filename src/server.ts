@@ -5,17 +5,20 @@ import type { OrbitaliClient } from "./client";
 import { OrbitaliApiError } from "./client";
 import {
   createRealtimeSessionInputSchema,
+  deleteAgentToolInputSchema,
   deleteKnowledgeDocumentInputSchema,
   ensureAgentToolsInputSchema,
   getOrCreateAgentInputSchema,
   listKnowledgeDocumentsInputSchema,
   listAgentToolsInputSchema,
   patchAgentInputSchema,
+  updateAgentToolInputSchema,
   uploadKnowledgeDocumentInputSchema,
   duplicateToolNameMessages
 } from "./schemas";
 import {
   createRealtimeSession,
+  deleteAgentTool,
   deleteKnowledgeDocument,
   ensureAgentTools,
   getOrCreateAgent,
@@ -23,6 +26,7 @@ import {
   listAgentTools,
   listAgents,
   patchAgent,
+  updateAgentTool,
   uploadKnowledgeDocument
 } from "./workflows";
 
@@ -78,7 +82,7 @@ export function createServer(client: OrbitaliClient): McpServer {
     {
       title: "Ensure agent tools",
       description:
-        "Create the provided tools on an agent, skipping any whose name already exists. Existing tool definitions are not modified.",
+        "Create the provided tools on an agent, skipping matching names by default or replacing them when updateExisting is true.",
       inputSchema: ensureAgentToolsInputSchema
     },
     (input) => runTool(async () => {
@@ -87,11 +91,32 @@ export function createServer(client: OrbitaliClient): McpServer {
         return {
           created: [],
           existing: [],
+          updated: [],
           failed: duplicateMessages.map((error) => ({ name: "input", error }))
         };
       }
       return ensureAgentTools(client, input);
     })
+  );
+
+  server.registerTool(
+    "update_agent_tool",
+    {
+      title: "Update agent tool",
+      description: "Replace one existing custom tool definition on a specific agent.",
+      inputSchema: updateAgentToolInputSchema
+    },
+    (input) => runTool(() => updateAgentTool(client, input))
+  );
+
+  server.registerTool(
+    "delete_agent_tool",
+    {
+      title: "Delete agent tool",
+      description: "Delete one custom tool from a specific agent.",
+      inputSchema: deleteAgentToolInputSchema
+    },
+    ({ agentId, toolId }) => runTool(() => deleteAgentTool(client, agentId, toolId))
   );
 
   server.registerTool(
