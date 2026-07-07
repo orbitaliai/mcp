@@ -45,7 +45,21 @@ export const patchAgentInputSchema = patchAgentRequestSchema.extend({
 
 export const ensureAgentToolsInputSchema = z.object({
   agentId: agentIdSchema,
-  tools: z.array(agentToolInputSchema).min(1).max(25).describe("Custom tools to create when a tool of the same name does not already exist.")
+  tools: z.array(agentToolInputSchema).min(1).max(25).describe("Custom tools to create when a tool of the same name does not already exist."),
+  updateExisting: z
+    .boolean()
+    .optional()
+    .describe("When true, replace existing tools with matching names instead of leaving them untouched.")
+});
+
+export const updateAgentToolInputSchema = agentToolInputSchema.extend({
+  agentId: agentIdSchema,
+  toolId: z.uuid().describe("The Orbitali tool id (UUID).")
+});
+
+export const deleteAgentToolInputSchema = z.object({
+  agentId: agentIdSchema,
+  toolId: z.uuid().describe("The Orbitali tool id (UUID).")
 });
 
 export const createRealtimeSessionInputSchema = z.object({
@@ -90,6 +104,7 @@ export const deleteKnowledgeDocumentInputSchema = z.object({
 export type GetOrCreateAgentInput = z.infer<typeof getOrCreateAgentInputSchema>;
 export type PatchAgentInput = z.infer<typeof patchAgentInputSchema>;
 export type EnsureAgentToolsInput = z.infer<typeof ensureAgentToolsInputSchema>;
+export type UpdateAgentToolInput = z.infer<typeof updateAgentToolInputSchema>;
 export type UploadKnowledgeDocumentInput = z.infer<typeof uploadKnowledgeDocumentInputSchema>;
 
 export function duplicateToolNameMessages(tools: EnsureAgentToolsInput["tools"]): string[] {

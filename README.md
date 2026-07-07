@@ -4,7 +4,7 @@ A local [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server t
 agents configure Orbitali voice agents through the public REST API (`/public/v1`).
 
 It wraps the API with higher-level, workflow-safe tools so an agent can create or reuse voice
-agents, avoid duplicate tools, and mint realtime sessions without hand-writing REST calls.
+agents, create, update, or delete tools, and mint realtime sessions without hand-writing REST calls.
 It can also upload, list, and delete agent knowledge documents.
 
 v1 runs over **stdio only**. MCP protocol messages are written to stdout; all logs and diagnostics
@@ -29,7 +29,9 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `list_agent_tools`         | List the custom tools configured on an agent.                                                   |
 | `get_or_create_agent`      | Reuse an agent matching name, agentType, language, voiceName, and serverUrl, or create one.     |
 | `patch_agent`              | Update agent fields (requires `expectedUpdatedAt` for optimistic concurrency).                  |
-| `ensure_agent_tools`       | Create only the tools whose name does not already exist; existing tools are left untouched.     |
+| `ensure_agent_tools`       | Create tools whose name does not already exist; optionally update existing matching tools.      |
+| `update_agent_tool`        | Replace one existing custom tool definition on an agent.                                       |
+| `delete_agent_tool`        | Delete one custom tool from an agent.                                                          |
 | `list_knowledge_documents` | List the knowledge documents configured on an agent.                                            |
 | `upload_knowledge_document`| Upload document text or a local `.txt`, `.md`, or `.pdf` file to an agent knowledge base.       |
 | `delete_knowledge_document`| Delete a knowledge document from an agent.                                                      |
@@ -111,5 +113,4 @@ MIT
 
 Intentionally out of scope for v1: hosted HTTP / SSE / Streamable HTTP transports, OAuth,
 phone-number management, billing, calls, and dashboard-only endpoints. The public REST API remains
-the source of truth; existing tools are matched by exact name, and updating existing tool definitions
-is deferred.
+the source of truth; `ensure_agent_tools` matches existing tools by exact name.

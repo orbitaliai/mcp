@@ -92,6 +92,21 @@ export class OrbitaliClient {
     return this.request<CreatedResponse>("POST", `/public/v1/agents/${encodeURIComponent(agentId)}/tools`, body);
   }
 
+  updateAgentTool(agentId: string, toolId: string, body: AgentToolInput): Promise<CreatedResponse> {
+    return this.request<CreatedResponse>(
+      "PUT",
+      `/public/v1/agents/${encodeURIComponent(agentId)}/tools/${encodeURIComponent(toolId)}`,
+      body
+    );
+  }
+
+  deleteAgentTool(agentId: string, toolId: string): Promise<CreatedResponse> {
+    return this.request<CreatedResponse>(
+      "DELETE",
+      `/public/v1/agents/${encodeURIComponent(agentId)}/tools/${encodeURIComponent(toolId)}`
+    );
+  }
+
   listKnowledgeDocuments(agentId: string): Promise<KnowledgeDocument[]> {
     return this.request<KnowledgeDocument[]>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/knowledge`);
   }

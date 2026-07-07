@@ -105,6 +105,44 @@ describe("OrbitaliClient", () => {
     expect(calls[0]?.init?.method).toBe("DELETE");
   });
 
+  test("updates agent tools with PUT", async () => {
+    const { fetchImpl, calls } = mockFetch({ id: "tool-1" }, 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    const result = await client.updateAgentTool("agent-1", "tool-1", {
+      name: "check_availability",
+      description: "Check availability",
+      parameterSchema: {},
+      responseSchema: null,
+      timeoutMs: 5000,
+      onError: "return_error",
+      enabled: true,
+      toolUrl: null,
+      toolMethod: "POST",
+      toolHeaders: {},
+      toolStaticParams: {},
+      toolContentType: "application/json",
+      toolRuntimeMetadata: []
+    });
+
+    expect(result).toEqual({ id: "tool-1" });
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/agents/agent-1/tools/tool-1");
+    expect(calls[0]?.init?.method).toBe("PUT");
+    const headers = calls[0]?.init?.headers as Record<string, string>;
+    expect(headers["Content-Type"]).toBe("application/json");
+  });
+
+  test("deletes agent tools with DELETE", async () => {
+    const { fetchImpl, calls } = mockFetch({ id: "tool-1" }, 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    const result = await client.deleteAgentTool("agent-1", "tool-1");
+
+    expect(result).toEqual({ id: "tool-1" });
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/agents/agent-1/tools/tool-1");
+    expect(calls[0]?.init?.method).toBe("DELETE");
+  });
+
   test("reports API error message and Zod issues", async () => {
     const issues = [{ path: ["name"], message: "Name is required" }];
     const { fetchImpl } = mockFetch({ error: "Invalid request body", issues }, 400);

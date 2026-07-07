@@ -1,12 +1,19 @@
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { OrbitaliApiError, type OrbitaliClient, type RealtimeSessionResponse } from "./client";
-import type { EnsureAgentToolsInput, GetOrCreateAgentInput, PatchAgentInput, UploadKnowledgeDocumentInput } from "./schemas";
+import type {
+  EnsureAgentToolsInput,
+  GetOrCreateAgentInput,
+  PatchAgentInput,
+  UpdateAgentToolInput,
+  UploadKnowledgeDocumentInput
+} from "./schemas";
 import {
   createAgentRequestSchema,
   createKnowledgeDocumentRequestSchema,
   type Agent,
   type AgentTool,
+  type AgentToolInput,
   type CreateAgentRequest,
   type KnowledgeDocument
 } from "./types";
@@ -27,6 +34,7 @@ export interface ToolResult {
 export interface EnsureAgentToolsResult {
   created: ToolResult[];
   existing: ToolResult[];
+  updated: ToolResult[];
   failed: ToolFailure[];
 }
 
@@ -85,8 +93,8 @@ export async function patchAgent(client: OrbitaliClient, input: PatchAgentInput)
 }
 
 /**
- * Creates only the tools whose name is not already present on the agent.
- * Existing tool definitions are left untouched in v1.
+ * Creates tools whose name is not already present on the agent.
+ * Existing matching tools are left untouched unless updateExisting is true.
  */
 export async function ensureAgentTools(client: OrbitaliClient, input: EnsureAgentToolsInput): Promise<EnsureAgentToolsResult> {
   const existingTools = await client.listAgentTools(input.agentId);
@@ -94,12 +102,23 @@ export async function ensureAgentTools(client: OrbitaliClient, input: EnsureAgen
 
   const created: ToolResult[] = [];
   const existing: ToolResult[] = [];
+  const updated: ToolResult[] = [];
   const failed: ToolFailure[] = [];
 
   for (const tool of input.tools) {
     const match = seenByName.get(tool.name);
 
     if (match) {
+      if (input.updateExisting) {
+        try {
+          await client.updateAgentTool(input.agentId, match.id, tool);
+          updated.push(match);
+        } catch (error) {
+          failed.push(toolFailure(tool.name, error));
+        }
+        continue;
+      }
+
       existing.push(match);
       continue;
     }
@@ -114,7 +133,16 @@ export async function ensureAgentTools(client: OrbitaliClient, input: EnsureAgen
     }
   }
 
-  return { created, existing, failed };
+  return { created, existing, updated, failed };
+}
+
+export function updateAgentTool(client: OrbitaliClient, input: UpdateAgentToolInput): Promise<{ id: string }> {
+  const { agentId, toolId, id: _id, ...tool } = input as UpdateAgentToolInput & { id?: string };
+  return client.updateAgentTool(agentId, toolId, tool as AgentToolInput);
+}
+
+export function deleteAgentTool(client: OrbitaliClient, agentId: string, toolId: string): Promise<{ id: string }> {
+  return client.deleteAgentTool(agentId, toolId);
 }
 
 export async function uploadKnowledgeDocument(

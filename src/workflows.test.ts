@@ -4,14 +4,16 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { OrbitaliApiError, type CreatedKnowledgeDocumentResponse, type OrbitaliClient, type RealtimeSessionResponse } from "./client";
 import type { EnsureAgentToolsInput, GetOrCreateAgentInput, PatchAgentInput } from "./schemas";
-import type { Agent, AgentTool, CreateKnowledgeDocumentRequest, KnowledgeDocument } from "./types";
+import type { Agent, AgentTool, AgentToolInput, CreateKnowledgeDocumentRequest, KnowledgeDocument } from "./types";
 import {
   createRealtimeSession,
+  deleteAgentTool,
   deleteKnowledgeDocument,
   ensureAgentTools,
   getOrCreateAgent,
   listKnowledgeDocuments,
   patchAgent,
+  updateAgentTool,
   uploadKnowledgeDocument
 } from "./workflows";
 
@@ -99,6 +101,8 @@ function createAgentInput(overrides: Partial<GetOrCreateAgentInput> = {}): GetOr
 interface StubCalls {
   createAgent: unknown[];
   createAgentTool: Array<{ agentId: string; name: string }>;
+  updateAgentTool: Array<{ agentId: string; toolId: string; name: string }>;
+  deleteAgentTool: Array<{ agentId: string; toolId: string }>;
   deleteKnowledgeDocument: Array<{ agentId: string; documentId: string }>;
   uploadKnowledgeFile: Array<{ agentId: string; fileName: string; name?: string; description?: string | null; text: string }>;
   uploadKnowledgeText: Array<{ agentId: string; body: CreateKnowledgeDocumentRequest }>;
@@ -113,6 +117,8 @@ function stubClient(
     createAgent: (body: unknown) => Promise<{ id: string }>;
     patchAgent: (agentId: string, body: unknown) => Promise<{ id: string }>;
     createAgentTool: (agentId: string, body: { name: string }) => Promise<{ id: string }>;
+    updateAgentTool: (agentId: string, toolId: string, body: AgentToolInput) => Promise<{ id: string }>;
+    deleteAgentTool: (agentId: string, toolId: string) => Promise<{ id: string }>;
     listKnowledgeDocuments: (agentId: string) => Promise<KnowledgeDocument[]>;
     uploadKnowledgeText: (agentId: string, body: CreateKnowledgeDocumentRequest) => Promise<CreatedKnowledgeDocumentResponse>;
     uploadKnowledgeFile: (
@@ -126,6 +132,8 @@ function stubClient(
   const calls: StubCalls = {
     createAgent: [],
     createAgentTool: [],
+    updateAgentTool: [],
+    deleteAgentTool: [],
     deleteKnowledgeDocument: [],
     uploadKnowledgeFile: [],
     uploadKnowledgeText: [],
@@ -150,6 +158,14 @@ function stubClient(
     createAgentTool: async (agentId: string, body: { name: string }) => {
       calls.createAgentTool.push({ agentId, name: body.name });
       return handlers.createAgentTool ? handlers.createAgentTool(agentId, body) : { id: `created-${body.name}` };
+    },
+    updateAgentTool: async (agentId: string, toolId: string, body: AgentToolInput) => {
+      calls.updateAgentTool.push({ agentId, toolId, name: body.name });
+      return handlers.updateAgentTool ? handlers.updateAgentTool(agentId, toolId, body) : { id: toolId };
+    },
+    deleteAgentTool: async (agentId: string, toolId: string) => {
+      calls.deleteAgentTool.push({ agentId, toolId });
+      return handlers.deleteAgentTool ? handlers.deleteAgentTool(agentId, toolId) : { id: toolId };
     },
     listKnowledgeDocuments: async (agentId: string) =>
       handlers.listKnowledgeDocuments ? handlers.listKnowledgeDocuments(agentId) : [],
@@ -283,6 +299,7 @@ describe("ensureAgentTools", () => {
     expect(result).toEqual({
       existing: [{ name: "check_availability", id: "existing-id" }],
       created: [{ name: "create_booking", id: "new-create_booking" }],
+      updated: [],
       failed: []
     });
     expect(calls.createAgentTool).toEqual([{ agentId: "agent-1", name: "create_booking" }]);
@@ -307,6 +324,7 @@ describe("ensureAgentTools", () => {
     expect(result).toEqual({
       created: [{ name: "create_booking", id: "new-create_booking" }],
       existing: [{ name: "create_booking", id: "new-create_booking" }],
+      updated: [],
       failed: []
     });
     expect(calls.createAgentTool).toEqual([{ agentId: "agent-1", name: "create_booking" }]);
@@ -344,6 +362,7 @@ describe("ensureAgentTools", () => {
         { name: "cancel_booking", id: "new-cancel_booking" }
       ],
       existing: [],
+      updated: [],
       failed: [
         { name: "broken_tool", error: "Invalid request body", status: 400, code: "BAD_TOOL" },
         { name: "timeout_tool", error: "Request timed out", status: 0, code: "REQUEST_TIMEOUT" }
@@ -354,6 +373,97 @@ describe("ensureAgentTools", () => {
       { agentId: "agent-1", name: "broken_tool" },
       { agentId: "agent-1", name: "timeout_tool" },
       { agentId: "agent-1", name: "cancel_booking" }
+    ]);
+  });
+
+  test("updates existing tools when requested", async () => {
+    const existing = makeTool({ id: "existing-id", name: "check_availability" });
+    const { client, calls } = stubClient({
+      listAgentTools: async () => [existing],
+      createAgentTool: async (_agentId, body) => ({ id: `new-${body.name}` })
+    });
+
+    const input: EnsureAgentToolsInput = {
+      agentId: "agent-1",
+      updateExisting: true,
+      tools: [
+        makeTool({ name: "check_availability", description: "Updated availability check" }),
+        makeTool({ name: "create_booking" })
+      ]
+    };
+
+    const result = await ensureAgentTools(client, input);
+
+    expect(result).toEqual({
+      existing: [],
+      created: [{ name: "create_booking", id: "new-create_booking" }],
+      updated: [{ name: "check_availability", id: "existing-id" }],
+      failed: []
+    });
+    expect(calls.updateAgentTool).toEqual([{ agentId: "agent-1", toolId: "existing-id", name: "check_availability" }]);
+    expect(calls.createAgentTool).toEqual([{ agentId: "agent-1", name: "create_booking" }]);
+  });
+
+  test("reports per-tool update failures", async () => {
+    const existing = makeTool({ id: "existing-id", name: "broken_tool" });
+    const { client } = stubClient({
+      listAgentTools: async () => [existing],
+      updateAgentTool: async () => {
+        throw new OrbitaliApiError("Tool not found", { status: 404 });
+      }
+    });
+
+    const result = await ensureAgentTools(client, {
+      agentId: "agent-1",
+      updateExisting: true,
+      tools: [makeTool({ name: "broken_tool" })]
+    });
+
+    expect(result).toEqual({
+      created: [],
+      existing: [],
+      updated: [],
+      failed: [{ name: "broken_tool", error: "Tool not found", status: 404, code: undefined }]
+    });
+  });
+});
+
+describe("agent tools", () => {
+  test("updates a tool and strips routing fields from the body", async () => {
+    const { client, calls } = stubClient({});
+    const input = {
+      agentId: "11111111-1111-4111-8111-111111111111",
+      toolId: "22222222-2222-4222-8222-222222222222",
+      ...makeTool({ id: "ignored-id", name: "check_availability" })
+    };
+
+    const result = await updateAgentTool(client, input);
+
+    expect(result).toEqual({ id: input.toolId });
+    expect(calls.updateAgentTool).toEqual([
+      {
+        agentId: input.agentId,
+        toolId: input.toolId,
+        name: "check_availability"
+      }
+    ]);
+  });
+
+  test("deletes a tool", async () => {
+    const { client, calls } = stubClient({});
+
+    const result = await deleteAgentTool(
+      client,
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222"
+    );
+
+    expect(result).toEqual({ id: "22222222-2222-4222-8222-222222222222" });
+    expect(calls.deleteAgentTool).toEqual([
+      {
+        agentId: "11111111-1111-4111-8111-111111111111",
+        toolId: "22222222-2222-4222-8222-222222222222"
+      }
     ]);
   });
 });
