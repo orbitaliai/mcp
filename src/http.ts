@@ -49,6 +49,10 @@ function withCors(response: Response): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 async function handleMcp(request: Request): Promise<Response> {
   const apiKey = readBearerToken(request);
   if (!apiKey) {
@@ -66,8 +70,17 @@ async function handleMcp(request: Request): Promise<Response> {
     await server.connect(transport);
     return await transport.handleRequest(request);
   } finally {
-    await transport.close();
-    await server.close();
+    try {
+      await transport.close();
+    } catch (error) {
+      process.stderr.write(`Failed to close remote MCP transport: ${errorMessage(error)}\n`);
+    }
+
+    try {
+      await server.close();
+    } catch (error) {
+      process.stderr.write(`Failed to close remote MCP server: ${errorMessage(error)}\n`);
+    }
   }
 }
 
@@ -95,8 +108,7 @@ Bun.serve({
     try {
       return withCors(await handleMcp(request));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`Failed to handle remote MCP request: ${message}\n`);
+      process.stderr.write(`Failed to handle remote MCP request: ${errorMessage(error)}\n`);
       return json(500, { error: "internal_server_error" });
     }
   }
