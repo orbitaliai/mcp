@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: orbitali-mcp
+  namespace: orbitali
+  labels:
+    app.kubernetes.io/name: orbitali-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: orbitali-mcp
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
