@@ -1,6 +1,6 @@
 {
   "name": "@orbitali/mcp",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Orbitali MCP server for configuring voice agents from coding agents.",
   "type": "module",
   "license": "MIT",
