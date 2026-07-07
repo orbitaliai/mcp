@@ -4,6 +4,8 @@ metadata:
   name: orbitali-mcp
   namespace: orbitali
   annotations:
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    acme.cert-manager.io/http01-ingress-ingressclassname: nginx
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
