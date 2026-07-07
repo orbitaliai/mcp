@@ -7,8 +7,8 @@ It wraps the API with higher-level, workflow-safe tools so an agent can create o
 agents, create, update, or delete tools, and mint realtime sessions without hand-writing REST calls.
 It can also upload, list, and delete agent knowledge documents.
 
-v1 runs over **stdio only**. MCP protocol messages are written to stdout; all logs and diagnostics
-go to stderr.
+The npm package runs locally over **stdio**. The production deployment also exposes a remote
+Streamable HTTP endpoint for clients that support hosted MCP servers.
 
 ## Configuration
 
@@ -50,6 +50,23 @@ From a local checkout of this repository:
 ```bash
 ORBITALI_API_KEY=sk_your_key bun run dev
 ```
+
+## Running remotely
+
+Remote MCP clients can connect to:
+
+```text
+https://mcp.orbitali.ai/mcp
+```
+
+Pass your Orbitali API key as an HTTP header:
+
+```text
+Authorization: Bearer sk_your_key
+```
+
+The hosted MCP process does not store or ship an Orbitali API key. Each request is authorized with
+the key supplied by the MCP client.
 
 ## Coding-agent configuration
 
@@ -111,6 +128,6 @@ MIT
 
 ## Scope (v1)
 
-Intentionally out of scope for v1: hosted HTTP / SSE / Streamable HTTP transports, OAuth,
-phone-number management, billing, calls, and dashboard-only endpoints. The public REST API remains
-the source of truth; `ensure_agent_tools` matches existing tools by exact name.
+Intentionally out of scope for v1: OAuth, phone-number management, billing, calls, and
+dashboard-only endpoints. The public REST API remains the source of truth; `ensure_agent_tools`
+matches existing tools by exact name.

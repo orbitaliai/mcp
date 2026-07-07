@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orbitali-mcp
+  namespace: orbitali
+  labels:
+    app.kubernetes.io/name: orbitali-mcp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orbitali-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: orbitali-mcp
+    spec:
+      imagePullSecrets:
+        - name: registry-credentials
+      containers:
+        - name: mcp
+          image: ghcr.io/orbitaliai/mcp/orbitali-mcp:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: MCP_PORT
+              value: "3000"
+            - name: MCP_PATH
+              value: /mcp
+            - name: ORBITALI_API_BASE_URL
+              value: https://api.orbitali.ai
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
