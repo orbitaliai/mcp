@@ -2,8 +2,11 @@ import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { OrbitaliApiError, type OrbitaliClient, type RealtimeSessionResponse } from "./client";
 import type {
+  AssignPhoneNumberInput,
   EnsureAgentToolsInput,
   GetOrCreateAgentInput,
+  ListAgentLogsInput,
+  ListCallsInput,
   PatchAgentInput,
   UpdateAgentToolInput,
   UploadKnowledgeDocumentInput
@@ -12,10 +15,15 @@ import {
   createAgentRequestSchema,
   createKnowledgeDocumentRequestSchema,
   type Agent,
+  type AgentAssignedPhoneNumber,
+  type AgentLogsResponse,
   type AgentTool,
   type AgentToolInput,
+  type CallDetail,
+  type CallSummary,
   type CreateAgentRequest,
-  type KnowledgeDocument
+  type KnowledgeDocument,
+  type PhoneNumber
 } from "./types";
 
 const maxKnowledgeDocumentFileBytes = 1_000_000;
@@ -182,6 +190,47 @@ export function deleteKnowledgeDocument(
 
 export function createRealtimeSession(client: OrbitaliClient, agentId: string): Promise<RealtimeSessionResponse> {
   return client.createRealtimeSession(agentId);
+}
+
+export function listPhoneNumbers(client: OrbitaliClient): Promise<PhoneNumber[]> {
+  return client.listPhoneNumbers();
+}
+
+/**
+ * Assigns one phone number to an agent and returns the agent's resulting
+ * assignments. The API moves the number if it was assigned to another agent.
+ */
+export async function assignPhoneNumber(
+  client: OrbitaliClient,
+  input: AssignPhoneNumberInput
+): Promise<{ phoneNumberId: string; assignedPhoneNumbers: AgentAssignedPhoneNumber[] }> {
+  const { agentId, ...assignment } = input;
+  const { phoneNumberId } = await client.assignPhoneNumber(agentId, assignment);
+  const assignedPhoneNumbers = await client.listAgentPhoneNumbers(agentId);
+  return { phoneNumberId, assignedPhoneNumbers };
+}
+
+export async function unassignPhoneNumber(
+  client: OrbitaliClient,
+  agentId: string,
+  phoneNumberId: string
+): Promise<{ phoneNumberId: string; assignedPhoneNumbers: AgentAssignedPhoneNumber[] }> {
+  const removed = await client.unassignPhoneNumber(agentId, phoneNumberId);
+  const assignedPhoneNumbers = await client.listAgentPhoneNumbers(agentId);
+  return { phoneNumberId: removed.phoneNumberId, assignedPhoneNumbers };
+}
+
+export function listCalls(client: OrbitaliClient, input: ListCallsInput): Promise<CallSummary[]> {
+  return client.listCalls(input);
+}
+
+export function getCall(client: OrbitaliClient, callId: string): Promise<CallDetail> {
+  return client.getCall(callId);
+}
+
+export function listAgentLogs(client: OrbitaliClient, input: ListAgentLogsInput): Promise<AgentLogsResponse> {
+  const { agentId, ...params } = input;
+  return client.listAgentLogs(agentId, params);
 }
 
 function isSameAgent(agent: Agent, request: CreateAgentRequest): boolean {

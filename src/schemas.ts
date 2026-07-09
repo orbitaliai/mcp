@@ -1,5 +1,6 @@
 import {
   agentCreateServerFieldsSchema,
+  agentLogSeveritySchema,
   agentPromptFieldsBaseSchema,
   agentToolInputSchema,
   createKnowledgeDocumentRequestSchema,
@@ -101,11 +102,52 @@ export const deleteKnowledgeDocumentInputSchema = z.object({
   documentId: z.uuid().describe("The Orbitali knowledge document id (UUID).")
 });
 
+export const assignPhoneNumberInputSchema = z.object({
+  agentId: agentIdSchema,
+  phoneNumberId: z.uuid().describe("The Orbitali phone number id (UUID) to assign."),
+  handoffPhoneNumber: z
+    .string()
+    .trim()
+    .max(32)
+    .nullable()
+    .optional()
+    .describe("Optional E.164 number that calls on this phone number can be handed off to.")
+});
+
+export const unassignPhoneNumberInputSchema = z.object({
+  agentId: agentIdSchema,
+  phoneNumberId: z.uuid().describe("The Orbitali phone number id (UUID) to unassign.")
+});
+
+export const listCallsInputSchema = z.object({
+  agentId: agentIdSchema.optional().describe("Only return calls handled by this agent."),
+  limit: z.number().int().min(1).max(100).optional().describe("Maximum number of calls to return (default 25).")
+});
+
+export const getCallInputSchema = z.object({
+  callId: z.uuid().describe("The Orbitali call id (UUID).")
+});
+
+export const listAgentLogsInputSchema = z.object({
+  agentId: agentIdSchema,
+  limit: z.number().int().min(1).max(100).optional().describe("Maximum number of log entries to return (default 25)."),
+  offset: z.number().int().nonnegative().optional().describe("Number of log entries to skip for pagination."),
+  severity: agentLogSeveritySchema.optional().describe("Only return logs with this severity."),
+  sessionId: z
+    .string()
+    .regex(/^[0-9a-zA-Z]{6}$/)
+    .optional()
+    .describe("Only return logs from this 6-character session id.")
+});
+
 export type GetOrCreateAgentInput = z.infer<typeof getOrCreateAgentInputSchema>;
 export type PatchAgentInput = z.infer<typeof patchAgentInputSchema>;
 export type EnsureAgentToolsInput = z.infer<typeof ensureAgentToolsInputSchema>;
 export type UpdateAgentToolInput = z.infer<typeof updateAgentToolInputSchema>;
 export type UploadKnowledgeDocumentInput = z.infer<typeof uploadKnowledgeDocumentInputSchema>;
+export type AssignPhoneNumberInput = z.infer<typeof assignPhoneNumberInputSchema>;
+export type ListCallsInput = z.infer<typeof listCallsInputSchema>;
+export type ListAgentLogsInput = z.infer<typeof listAgentLogsInputSchema>;
 
 export function duplicateToolNameMessages(tools: EnsureAgentToolsInput["tools"]): string[] {
   const seen = new Map<string, number>();

@@ -172,3 +172,111 @@ export const patchAgentRequestSchema = updateAgentServerFieldsSchema.merge(agent
   expectedUpdatedAt: z.iso.datetime()
 });
 export type PatchAgentRequest = z.infer<typeof patchAgentRequestSchema>;
+
+export const phoneNumberSchema = z.object({
+  id: z.uuid(),
+  phoneNumber: z.string().min(1),
+  friendlyName: z.string().min(1),
+  status: z.enum(["claimed", "available", "released", "suspended"]),
+  source: z.enum(["managed", "user"]),
+  provider: z.enum(["telnyx", "twilio"]),
+  setupStatus: z.enum(["configured", "setup_required", "pending_verification"]),
+  assignedAgentId: z.uuid().nullable(),
+  assignedAgentName: z.string().nullable(),
+  countryCode: z.string().min(2)
+});
+export type PhoneNumber = z.infer<typeof phoneNumberSchema>;
+
+export const agentAssignedPhoneNumberSchema = z.object({
+  phoneNumberId: z.uuid(),
+  phoneNumber: z.string().min(1),
+  friendlyName: z.string().min(1),
+  handoffPhoneNumber: z.string().nullable()
+});
+export type AgentAssignedPhoneNumber = z.infer<typeof agentAssignedPhoneNumberSchema>;
+
+export const callStatusSchema = z.enum(["completed", "active", "failed"]);
+export type CallStatus = z.infer<typeof callStatusSchema>;
+
+export const callSummarySchema = z.object({
+  id: z.uuid(),
+  agentName: z.string().min(1),
+  fromNumber: z.string().min(1),
+  toNumber: z.string().min(1),
+  status: callStatusSchema,
+  durationSeconds: z.number().int().nonnegative(),
+  startedAt: z.iso.datetime(),
+  toolInvocations: z.number().int().nonnegative(),
+  usageCostEur: z.number().nonnegative()
+});
+export type CallSummary = z.infer<typeof callSummarySchema>;
+
+export const callMessageSchema = z.object({
+  id: z.uuid(),
+  role: z.string().min(1),
+  content: z.string(),
+  occurredAt: z.iso.datetime()
+});
+export type CallMessage = z.infer<typeof callMessageSchema>;
+
+export const callToolInvocationSchema = z.object({
+  id: z.uuid(),
+  agentToolId: z.uuid().nullable(),
+  toolName: z.string().min(1),
+  request: z.unknown(),
+  response: z.string().nullable(),
+  status: z.string().min(1),
+  durationMs: z.number().int().nonnegative(),
+  createdAt: z.iso.datetime()
+});
+export type CallToolInvocation = z.infer<typeof callToolInvocationSchema>;
+
+export const llmUsageSchema = z.object({
+  id: z.uuid(),
+  model: z.string().min(1),
+  promptTokens: z.number().int().nonnegative(),
+  cachedTokens: z.number().int().nonnegative(),
+  responseTokens: z.number().int().nonnegative(),
+  toolTokens: z.number().int().nonnegative(),
+  thoughtTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  estimatedCostUsd: z.number().nonnegative().nullable(),
+  rawProviderData: z.unknown().nullable(),
+  createdAt: z.iso.datetime()
+});
+export type LlmUsage = z.infer<typeof llmUsageSchema>;
+
+export const callDetailSchema = callSummarySchema.extend({
+  summary: z.string().nullable(),
+  messages: z.array(callMessageSchema),
+  toolInvocationsLog: z.array(callToolInvocationSchema),
+  llmUsage: z.array(llmUsageSchema)
+});
+export type CallDetail = z.infer<typeof callDetailSchema>;
+
+export const agentLogSeveritySchema = z.enum(["debug", "info", "warn", "error"]);
+export type AgentLogSeverity = z.infer<typeof agentLogSeveritySchema>;
+
+export const agentLogSessionIdSchema = z.string().regex(/^[0-9a-zA-Z]{6}$/);
+
+export const agentLogSchema = z.object({
+  id: z.uuid(),
+  accountId: z.uuid(),
+  agentId: z.uuid(),
+  sessionId: agentLogSessionIdSchema,
+  timestamp: z.iso.datetime(),
+  severity: agentLogSeveritySchema,
+  content: z.unknown()
+});
+export type AgentLog = z.infer<typeof agentLogSchema>;
+
+export const agentLogsResponseSchema = z.object({
+  logs: z.array(agentLogSchema),
+  pagination: z.object({
+    limit: z.number().int().positive(),
+    offset: z.number().int().nonnegative(),
+    hasNextPage: z.boolean(),
+    hasPreviousPage: z.boolean()
+  })
+});
+export type AgentLogsResponse = z.infer<typeof agentLogsResponseSchema>;

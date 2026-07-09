@@ -4,8 +4,16 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { OrbitaliApiError, type CreatedKnowledgeDocumentResponse, type OrbitaliClient, type RealtimeSessionResponse } from "./client";
 import type { EnsureAgentToolsInput, GetOrCreateAgentInput, PatchAgentInput } from "./schemas";
-import type { Agent, AgentTool, AgentToolInput, CreateKnowledgeDocumentRequest, KnowledgeDocument } from "./types";
+import type {
+  Agent,
+  AgentAssignedPhoneNumber,
+  AgentTool,
+  AgentToolInput,
+  CreateKnowledgeDocumentRequest,
+  KnowledgeDocument
+} from "./types";
 import {
+  assignPhoneNumber,
   createRealtimeSession,
   deleteAgentTool,
   deleteKnowledgeDocument,
@@ -13,6 +21,7 @@ import {
   getOrCreateAgent,
   listKnowledgeDocuments,
   patchAgent,
+  unassignPhoneNumber,
   updateAgentTool,
   uploadKnowledgeDocument
 } from "./workflows";
@@ -579,5 +588,59 @@ describe("createRealtimeSession", () => {
     const result = await createRealtimeSession(client, "agent-1");
 
     expect(result).toBe(response);
+  });
+});
+
+const assignedNumber: AgentAssignedPhoneNumber = {
+  phoneNumberId: "22222222-2222-4222-8222-222222222222",
+  phoneNumber: "+15550001000",
+  friendlyName: "+15550001000",
+  handoffPhoneNumber: null
+};
+
+describe("assignPhoneNumber", () => {
+  test("assigns and returns the agent's resulting assignments", async () => {
+    const assignCalls: Array<{ agentId: string; assignment: unknown }> = [];
+    const client = {
+      assignPhoneNumber: async (agentId: string, assignment: unknown) => {
+        assignCalls.push({ agentId, assignment });
+        return { phoneNumberId: assignedNumber.phoneNumberId };
+      },
+      listAgentPhoneNumbers: async () => [assignedNumber]
+    } as unknown as OrbitaliClient;
+
+    const result = await assignPhoneNumber(client, {
+      agentId: "11111111-1111-4111-8111-111111111111",
+      phoneNumberId: assignedNumber.phoneNumberId,
+      handoffPhoneNumber: "+15550009999"
+    });
+
+    expect(result).toEqual({
+      phoneNumberId: assignedNumber.phoneNumberId,
+      assignedPhoneNumbers: [assignedNumber]
+    });
+    expect(assignCalls).toEqual([
+      {
+        agentId: "11111111-1111-4111-8111-111111111111",
+        assignment: { phoneNumberId: assignedNumber.phoneNumberId, handoffPhoneNumber: "+15550009999" }
+      }
+    ]);
+  });
+});
+
+describe("unassignPhoneNumber", () => {
+  test("unassigns and returns the agent's remaining assignments", async () => {
+    const client = {
+      unassignPhoneNumber: async (_agentId: string, phoneNumberId: string) => ({ phoneNumberId }),
+      listAgentPhoneNumbers: async () => []
+    } as unknown as OrbitaliClient;
+
+    const result = await unassignPhoneNumber(
+      client,
+      "11111111-1111-4111-8111-111111111111",
+      assignedNumber.phoneNumberId
+    );
+
+    expect(result).toEqual({ phoneNumberId: assignedNumber.phoneNumberId, assignedPhoneNumbers: [] });
   });
 });

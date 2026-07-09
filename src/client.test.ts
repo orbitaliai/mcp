@@ -161,6 +161,81 @@ describe("OrbitaliClient", () => {
     }
   });
 
+  test("lists phone numbers with GET", async () => {
+    const { fetchImpl, calls } = mockFetch([], 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    const result = await client.listPhoneNumbers();
+
+    expect(result).toEqual([]);
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/phone-numbers");
+    expect(calls[0]?.init?.method).toBe("GET");
+  });
+
+  test("assigns a phone number with POST", async () => {
+    const { fetchImpl, calls } = mockFetch({ phoneNumberId: "pn-1" }, 201);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    const result = await client.assignPhoneNumber("agent-1", { phoneNumberId: "pn-1", handoffPhoneNumber: "+15550001234" });
+
+    expect(result).toEqual({ phoneNumberId: "pn-1" });
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/agents/agent-1/phone-numbers");
+    expect(calls[0]?.init?.method).toBe("POST");
+    expect(calls[0]?.init?.body).toBe(JSON.stringify({ phoneNumberId: "pn-1", handoffPhoneNumber: "+15550001234" }));
+  });
+
+  test("unassigns a phone number with DELETE", async () => {
+    const { fetchImpl, calls } = mockFetch({ phoneNumberId: "pn-1" }, 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    const result = await client.unassignPhoneNumber("agent-1", "pn-1");
+
+    expect(result).toEqual({ phoneNumberId: "pn-1" });
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/agents/agent-1/phone-numbers/pn-1");
+    expect(calls[0]?.init?.method).toBe("DELETE");
+  });
+
+  test("lists calls with encoded query parameters", async () => {
+    const { fetchImpl, calls } = mockFetch([], 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    await client.listCalls({ agentId: "agent-1", limit: 10 });
+
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/calls?agentId=agent-1&limit=10");
+    expect(calls[0]?.init?.method).toBe("GET");
+  });
+
+  test("lists calls without a query string when no params are set", async () => {
+    const { fetchImpl, calls } = mockFetch([], 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    await client.listCalls();
+
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/calls");
+  });
+
+  test("gets call detail with GET", async () => {
+    const { fetchImpl, calls } = mockFetch({ id: "call-1", messages: [] }, 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    const result = await client.getCall("call-1");
+
+    expect(result).toMatchObject({ id: "call-1" });
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/calls/call-1");
+  });
+
+  test("lists agent logs with filter query parameters", async () => {
+    const { fetchImpl, calls } = mockFetch({ logs: [], pagination: { limit: 25, offset: 0, hasNextPage: false, hasPreviousPage: false } }, 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    await client.listAgentLogs("agent-1", { severity: "error", limit: 50, offset: 25, sessionId: "abc123" });
+
+    expect(calls[0]?.url).toBe(
+      "https://api.example.com/public/v1/agents/agent-1/logs?severity=error&limit=50&offset=25&sessionId=abc123"
+    );
+    expect(calls[0]?.init?.method).toBe("GET");
+  });
+
   test("surfaces the concurrency conflict code from the API", async () => {
     const { fetchImpl } = mockFetch(
       { error: "Agent update conflict", details: "Agent changed since expectedUpdatedAt" },

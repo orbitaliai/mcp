@@ -1,12 +1,19 @@
 import type { OrbitaliMcpConfig } from "./config";
 import type {
   Agent,
+  AgentAssignedPhoneNumber,
+  AgentLogSeverity,
+  AgentLogsResponse,
+  AgentPhoneNumberAssignment,
   AgentTool,
   AgentToolInput,
+  CallDetail,
+  CallSummary,
   CreateAgentRequest,
   CreateKnowledgeDocumentRequest,
   KnowledgeDocument,
-  PatchAgentRequest
+  PatchAgentRequest,
+  PhoneNumber
 } from "./types";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -43,6 +50,29 @@ export interface KnowledgeFileUpload {
   file: Blob;
   name?: string;
   description?: string | null;
+}
+
+export type ListCallsParams = {
+  agentId?: string;
+  limit?: number;
+};
+
+export type ListAgentLogsParams = {
+  limit?: number;
+  offset?: number;
+  severity?: AgentLogSeverity;
+  sessionId?: string;
+};
+
+function toQueryString(params: Record<string, string | number | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const encoded = query.toString();
+  return encoded.length > 0 ? `?${encoded}` : "";
 }
 
 export interface RealtimeSessionResponse {
@@ -141,6 +171,41 @@ export class OrbitaliClient {
 
   createRealtimeSession(agentId: string): Promise<RealtimeSessionResponse> {
     return this.request<RealtimeSessionResponse>("POST", `/public/v1/agents/${encodeURIComponent(agentId)}/realtime-sessions`);
+  }
+
+  listPhoneNumbers(): Promise<PhoneNumber[]> {
+    return this.request<PhoneNumber[]>("GET", "/public/v1/phone-numbers");
+  }
+
+  listAgentPhoneNumbers(agentId: string): Promise<AgentAssignedPhoneNumber[]> {
+    return this.request<AgentAssignedPhoneNumber[]>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/phone-numbers`);
+  }
+
+  assignPhoneNumber(agentId: string, body: AgentPhoneNumberAssignment): Promise<{ phoneNumberId: string }> {
+    return this.request<{ phoneNumberId: string }>(
+      "POST",
+      `/public/v1/agents/${encodeURIComponent(agentId)}/phone-numbers`,
+      body
+    );
+  }
+
+  unassignPhoneNumber(agentId: string, phoneNumberId: string): Promise<{ phoneNumberId: string }> {
+    return this.request<{ phoneNumberId: string }>(
+      "DELETE",
+      `/public/v1/agents/${encodeURIComponent(agentId)}/phone-numbers/${encodeURIComponent(phoneNumberId)}`
+    );
+  }
+
+  listCalls(params: ListCallsParams = {}): Promise<CallSummary[]> {
+    return this.request<CallSummary[]>("GET", `/public/v1/calls${toQueryString(params)}`);
+  }
+
+  getCall(callId: string): Promise<CallDetail> {
+    return this.request<CallDetail>("GET", `/public/v1/calls/${encodeURIComponent(callId)}`);
+  }
+
+  listAgentLogs(agentId: string, params: ListAgentLogsParams = {}): Promise<AgentLogsResponse> {
+    return this.request<AgentLogsResponse>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/logs${toQueryString(params)}`);
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
