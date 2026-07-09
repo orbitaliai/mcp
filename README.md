@@ -5,7 +5,8 @@ agents configure Orbitali voice agents through the public REST API (`/public/v1`
 
 It wraps the API with higher-level, workflow-safe tools so an agent can create or reuse voice
 agents, create, update, or delete tools, and mint realtime sessions without hand-writing REST calls.
-It can also upload, list, and delete agent knowledge documents.
+It can also upload, list, and delete agent knowledge documents, manage phone number assignments,
+and inspect call history and agent runtime logs.
 
 The npm package runs locally over **stdio**. The production deployment also exposes a remote
 Streamable HTTP endpoint for clients that support hosted MCP servers.
@@ -36,6 +37,12 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `upload_knowledge_document`| Upload document text or a local `.txt`, `.md`, or `.pdf` file to an agent knowledge base.       |
 | `delete_knowledge_document`| Delete a knowledge document from an agent.                                                      |
 | `create_realtime_session`  | Mint a short-lived realtime session (token, expiration, WebSocket URL, audio protocol).         |
+| `list_phone_numbers`       | List the organization's phone numbers with claim status and current agent assignment.           |
+| `assign_phone_number`      | Assign a claimed phone number to an agent (moves it if assigned to another agent).              |
+| `unassign_phone_number`    | Remove a phone number assignment from an agent; the number stays claimed.                       |
+| `list_calls`               | List recent call history, optionally filtered by agent.                                         |
+| `get_call`                 | Get one call with summary, transcript messages, tool invocations, and LLM usage.                |
+| `list_agent_logs`          | List agent runtime logs from the last 24 hours (severity, session, pagination filters).         |
 
 ## Running locally
 
@@ -126,8 +133,9 @@ bun test
 
 MIT
 
-## Scope (v1)
+## Scope
 
-Intentionally out of scope for v1: OAuth, phone-number management, billing, calls, and
-dashboard-only endpoints. The public REST API remains the source of truth; `ensure_agent_tools`
-matches existing tools by exact name.
+Intentionally out of scope: OAuth, phone number purchasing/claiming, billing, and
+dashboard-only endpoints. Phone number assignment, call history, and agent logs are supported;
+buying or claiming numbers still happens in the dashboard. The public REST API remains the source
+of truth; `ensure_agent_tools` matches existing tools by exact name.

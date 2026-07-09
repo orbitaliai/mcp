@@ -4,28 +4,39 @@ import packageJson from "../package.json";
 import type { OrbitaliClient } from "./client";
 import { OrbitaliApiError } from "./client";
 import {
+  assignPhoneNumberInputSchema,
   createRealtimeSessionInputSchema,
   deleteAgentToolInputSchema,
   deleteKnowledgeDocumentInputSchema,
   ensureAgentToolsInputSchema,
+  getCallInputSchema,
   getOrCreateAgentInputSchema,
+  listAgentLogsInputSchema,
+  listCallsInputSchema,
   listKnowledgeDocumentsInputSchema,
   listAgentToolsInputSchema,
   patchAgentInputSchema,
+  unassignPhoneNumberInputSchema,
   updateAgentToolInputSchema,
   uploadKnowledgeDocumentInputSchema,
   duplicateToolNameMessages
 } from "./schemas";
 import {
+  assignPhoneNumber,
   createRealtimeSession,
   deleteAgentTool,
   deleteKnowledgeDocument,
   ensureAgentTools,
+  getCall,
   getOrCreateAgent,
+  listAgentLogs,
+  listCalls,
   listKnowledgeDocuments,
   listAgentTools,
   listAgents,
+  listPhoneNumbers,
   patchAgent,
+  unassignPhoneNumber,
   updateAgentTool,
   uploadKnowledgeDocument
 } from "./workflows";
@@ -158,6 +169,68 @@ export function createServer(client: OrbitaliClient): McpServer {
       inputSchema: createRealtimeSessionInputSchema
     },
     ({ agentId }) => runTool(() => createRealtimeSession(client, agentId))
+  );
+
+  server.registerTool(
+    "list_phone_numbers",
+    {
+      title: "List phone numbers",
+      description:
+        "List the organization's phone numbers with claim status and current agent assignment. Numbers without assignedAgentId are available to assign."
+    },
+    () => runTool(() => listPhoneNumbers(client))
+  );
+
+  server.registerTool(
+    "assign_phone_number",
+    {
+      title: "Assign phone number",
+      description:
+        "Assign a claimed phone number to an agent so it answers calls on that number. Moves the number if it is currently assigned to another agent. Returns the agent's resulting assignments.",
+      inputSchema: assignPhoneNumberInputSchema
+    },
+    (input) => runTool(() => assignPhoneNumber(client, input))
+  );
+
+  server.registerTool(
+    "unassign_phone_number",
+    {
+      title: "Unassign phone number",
+      description: "Remove a phone number assignment from an agent. The number stays claimed by the organization.",
+      inputSchema: unassignPhoneNumberInputSchema
+    },
+    ({ agentId, phoneNumberId }) => runTool(() => unassignPhoneNumber(client, agentId, phoneNumberId))
+  );
+
+  server.registerTool(
+    "list_calls",
+    {
+      title: "List calls",
+      description: "List recent call history (status, duration, numbers, tool invocation count), optionally filtered by agent.",
+      inputSchema: listCallsInputSchema
+    },
+    (input) => runTool(() => listCalls(client, input))
+  );
+
+  server.registerTool(
+    "get_call",
+    {
+      title: "Get call detail",
+      description: "Get one call with its summary, full transcript messages, tool invocations, and LLM usage.",
+      inputSchema: getCallInputSchema
+    },
+    ({ callId }) => runTool(() => getCall(client, callId))
+  );
+
+  server.registerTool(
+    "list_agent_logs",
+    {
+      title: "List agent logs",
+      description:
+        "List runtime logs for an agent from the last 24 hours, filterable by severity and session id, with limit/offset pagination.",
+      inputSchema: listAgentLogsInputSchema
+    },
+    (input) => runTool(() => listAgentLogs(client, input))
   );
 
   return server;
