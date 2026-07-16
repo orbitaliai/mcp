@@ -3,6 +3,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import packageJson from "../package.json";
 import type { OrbitaliClient } from "./client";
 import { OrbitaliApiError } from "./client";
+import { SERVER_INSTRUCTIONS } from "./instructions";
 import {
   assignPhoneNumberInputSchema,
   createRealtimeSessionInputSchema,
@@ -45,7 +46,7 @@ export const SERVER_NAME = "orbitali";
 export const SERVER_VERSION = packageJson.version;
 
 export function createServer(client: OrbitaliClient): McpServer {
-  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: SERVER_INSTRUCTIONS });
 
   server.registerTool(
     "list_agents",
@@ -71,7 +72,7 @@ export function createServer(client: OrbitaliClient): McpServer {
     {
       title: "Get or create agent",
       description:
-        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, and serverUrl. Set reuseExisting to false to always create.",
+        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, and serverUrl. Select agentType from the application architecture: static for no-code fixed behavior without custom tools, http for independent per-tool HTTP endpoints, or webhook for one event endpoint and optional dynamic prompts. Set reuseExisting to false to always create.",
       inputSchema: getOrCreateAgentInputSchema
     },
     (input) => runTool(() => getOrCreateAgent(client, input))
@@ -93,7 +94,7 @@ export function createServer(client: OrbitaliClient): McpServer {
     {
       title: "Ensure agent tools",
       description:
-        "Create the provided tools on an agent, skipping matching names by default or replacing them when updateExisting is true.",
+        "Create the provided tools on an HTTP or webhook agent, skipping matching names by default or replacing them when updateExisting is true. HTTP tools require their own toolUrl; webhook tools use the agent's serverUrl. Static agents do not support custom tools.",
       inputSchema: ensureAgentToolsInputSchema
     },
     (input) => runTool(async () => {

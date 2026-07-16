@@ -44,6 +44,22 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `get_call`                 | Get one call with summary, transcript messages, tool invocations, and LLM usage.                |
 | `list_agent_logs`          | List agent runtime logs from the last 24 hours (severity, session, pagination filters).         |
 
+## Choosing an agent type
+
+The MCP server sends coding agents workflow instructions during MCP initialization and requires an
+explicit `agentType` when creating an agent. Coding agents should inspect the user's application and
+select the integration architecture before calling `get_or_create_agent`:
+
+- `static`: No-code agent with identity, instructions, and greeting stored in Orbitali. It makes no
+  application server calls and does not support custom tools.
+- `http`: Prompt and greeting stored in Orbitali. Each custom tool calls its own HTTPS endpoint,
+  which suits applications that expose independent APIs for actions and lookups.
+- `webhook`: One `serverUrl` receives `agent:tool-call` events and can also provide per-call prompts
+  and greetings through `agent:assistant-request` events.
+
+Agent type is immutable after creation. Static and HTTP agents use static prompts; only webhook
+agents support dynamic prompts and greetings.
+
 ## Running locally
 
 After installing from npm:

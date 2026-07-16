@@ -18,7 +18,11 @@ export type ToolRuntimeMetadata = z.infer<typeof toolRuntimeMetadataSchema>;
 export const agentStatusSchema = z.enum(["active", "inactive", "draft"]);
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
 
-export const agentTypeSchema = z.enum(["static", "http", "webhook"]);
+export const agentTypeSchema = z
+  .enum(["static", "http", "webhook"])
+  .describe(
+    "Required integration architecture. Use static for a stored prompt with no custom tools, http when each custom tool calls its own HTTP endpoint, or webhook when one serverUrl handles tool events and optional dynamic prompts. The type cannot be changed after creation."
+  );
 export type AgentType = z.infer<typeof agentTypeSchema>;
 
 export const agentSchema = z.object({
@@ -88,9 +92,21 @@ export const agentToolSchema = z.object({
   timeoutMs: z.number().int().min(1000).max(30000),
   onError: toolOnErrorSchema,
   enabled: z.boolean(),
-  toolUrl: z.string().trim().url().nullable().default(null),
-  toolMethod: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]).default("POST"),
-  toolHeaders: z.record(z.string(), z.string()).default({}),
+  toolUrl: z
+    .string()
+    .trim()
+    .url()
+    .nullable()
+    .default(null)
+    .describe("HTTPS endpoint called for an HTTP agent tool; required for HTTP agents and null for webhook tools."),
+  toolMethod: z
+    .enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+    .default("POST")
+    .describe("HTTP method used with toolUrl for an HTTP agent tool."),
+  toolHeaders: z
+    .record(z.string(), z.string())
+    .default({})
+    .describe("Headers sent to toolUrl for an HTTP agent tool. Keep credentials in server-side configuration."),
   toolStaticParams: z.record(z.string(), z.unknown()).default({}),
   toolContentType: z.enum(["application/json"]).nullable().default("application/json"),
   toolRuntimeMetadata: z.array(toolRuntimeMetadataSchema).default([])

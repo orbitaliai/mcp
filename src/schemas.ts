@@ -1,5 +1,6 @@
 import {
   agentCreateServerFieldsSchema,
+  agentTypeSchema,
   agentLogSeveritySchema,
   agentPromptFieldsBaseSchema,
   agentToolInputSchema,
@@ -32,6 +33,9 @@ export const listAgentToolsInputSchema = z.object({
 });
 
 export const getOrCreateAgentInputSchema = agentCreateServerFieldsSchema
+  .extend({
+    agentType: agentTypeSchema
+  })
   .extend(agentPromptFieldsBaseSchema.shape)
   .extend({
     reuseExisting: z
