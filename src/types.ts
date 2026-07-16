@@ -95,7 +95,7 @@ export const agentToolSchema = z.object({
   toolUrl: z
     .string()
     .trim()
-    .url()
+    .url({ protocol: /^https$/ })
     .nullable()
     .default(null)
     .describe("HTTPS endpoint called for an HTTP agent tool; required for HTTP agents and null for webhook tools."),
