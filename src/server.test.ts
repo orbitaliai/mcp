@@ -39,6 +39,18 @@ describe("MCP discovery metadata", () => {
     expect(tool?.description).toContain("Select agentType from the application architecture");
     expect(inputSchema.required).toContain("agentType");
     expect(inputSchema.properties?.agentType?.description).toContain("Required integration architecture");
+    expect(inputSchema.properties?.mcpTools?.description).toContain("list_mcp_integrations");
+  });
+
+  test("advertises connected MCP integration discovery and assignment tools", async () => {
+    await connect();
+
+    const result = await client!.listTools();
+    const tools = new Map(result.tools.map((tool) => [tool.name, tool]));
+
+    expect(tools.get("list_mcp_integrations")?.description).toContain("Credentials are never returned");
+    expect(tools.get("list_agent_mcp_tools")?.description).toContain("currently assigned");
+    expect(tools.get("configure_agent_mcp_tools")?.description).toContain("Replace");
   });
 });
 

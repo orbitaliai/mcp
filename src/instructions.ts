@@ -7,6 +7,8 @@ Agent types:
 - http: An agent with a prompt and greeting stored in Orbitali. Each custom tool calls its own HTTPS toolUrl using its configured method, headers, static parameters, and runtime metadata. Choose this when the application exposes independent HTTP endpoints for actions or lookups and does not need per-call dynamic prompts.
 - webhook: An agent connected to one serverUrl. Orbitali sends agent:tool-call events to that URL for custom tools and, when dynamic prompts are enabled, agent:assistant-request events for per-call instructions and greetings. Choose this for centralized event handling, full server control, or behavior that depends on call context.
 
+Connected MCP integrations are separate from Orbitali custom HTTP/webhook tools. When a user asks an agent to use an MCP integration already configured in Orbitali (for example, Calendly), call list_mcp_integrations, match the integration by name, inspect its cached tools, and use the returned server id and exact tool names. Pass the desired selections to get_or_create_agent.mcpTools, or use configure_agent_mcp_tools for an existing agent. Never recreate a connected MCP tool with ensure_agent_tools.
+
 For application-integration requests, implement or identify the required application endpoint or endpoints, then configure the matching Orbitali agent and tools. Prefer http for direct, independent API operations; prefer webhook when one integration endpoint should dispatch events or when prompts/greetings must be generated dynamically. If the requirements and codebase do not establish which architecture is intended, ask the user before creating the agent.
 
 Creation rules:
@@ -14,6 +16,7 @@ Creation rules:
 - static and http agents require static prompts. Only webhook agents support dynamic prompts and dynamic greetings.
 - A webhook agent needs serverUrl before dynamic prompts or enabled custom tools can work.
 - An http tool needs its own toolUrl. A static agent cannot have custom tools.
+- Connected MCP tools can be assigned independently of custom tools; only select tools from an active integration returned by list_mcp_integrations.
 - Agents are created as drafts. Activate an agent with patch_agent only when the user wants it available for calls or realtime sessions.
 - Use list_agents before get_or_create_agent when existing-agent context matters. Use returned updatedAt as expectedUpdatedAt for patch_agent.
 

@@ -116,6 +116,32 @@ export type AgentTool = z.infer<typeof agentToolSchema>;
 export const agentToolInputSchema = agentToolSchema.omit({ id: true });
 export type AgentToolInput = z.infer<typeof agentToolInputSchema>;
 
+export const mcpIntegrationSchema = z.object({
+  id: z.uuid(),
+  organizationId: z.uuid(),
+  name: z.string(),
+  url: z.url(),
+  status: z.enum(["pending", "active", "inactive"]),
+  authType: z.enum(["none", "headers", "oauth2"]),
+  cachedTools: z.array(z.unknown()),
+  cachedToolsAt: z.iso.datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+});
+export type McpIntegration = z.infer<typeof mcpIntegrationSchema>;
+
+export const agentMcpToolSchema = z.object({
+  id: z.uuid(),
+  agentId: z.uuid(),
+  mcpServerId: z.uuid(),
+  toolName: z.string(),
+  enabled: z.boolean()
+});
+export type AgentMcpTool = z.infer<typeof agentMcpToolSchema>;
+
+export const agentMcpToolSelectionSchema = agentMcpToolSchema.omit({ id: true, agentId: true });
+export type AgentMcpToolSelection = z.infer<typeof agentMcpToolSelectionSchema>;
+
 export const knowledgeDocumentSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
