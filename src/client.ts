@@ -4,6 +4,8 @@ import type {
   AgentAssignedPhoneNumber,
   AgentLogSeverity,
   AgentLogsResponse,
+  AgentMcpTool,
+  AgentMcpToolSelection,
   AgentPhoneNumberAssignment,
   AgentTool,
   AgentToolInput,
@@ -12,6 +14,7 @@ import type {
   CreateAgentRequest,
   CreateKnowledgeDocumentRequest,
   KnowledgeDocument,
+  McpIntegration,
   PatchAgentRequest,
   PhoneNumber
 } from "./types";
@@ -108,6 +111,18 @@ export class OrbitaliClient {
 
   listAgentTools(agentId: string): Promise<AgentTool[]> {
     return this.request<AgentTool[]>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/tools`);
+  }
+
+  listMcpIntegrations(): Promise<McpIntegration[]> {
+    return this.request<McpIntegration[]>("GET", "/public/v1/mcp/servers");
+  }
+
+  listAgentMcpTools(agentId: string): Promise<AgentMcpTool[]> {
+    return this.request<AgentMcpTool[]>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/mcp-tools`);
+  }
+
+  setAgentMcpTools(agentId: string, tools: AgentMcpToolSelection[]): Promise<AgentMcpTool[]> {
+    return this.request<AgentMcpTool[]>("PUT", `/public/v1/agents/${encodeURIComponent(agentId)}/mcp-tools`, tools);
   }
 
   createAgent(body: CreateAgentRequest): Promise<CreatedResponse> {

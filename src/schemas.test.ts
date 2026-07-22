@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { getOrCreateAgentInputSchema, uploadKnowledgeDocumentInputSchema } from "./schemas";
-import { agentToolInputSchema } from "./types";
+import { agentMcpToolSelectionSchema, agentToolInputSchema, mcpIntegrationSchema } from "./types";
 
 const agentId = "11111111-1111-4111-8111-111111111111";
 
@@ -65,6 +65,41 @@ describe("agentToolInputSchema", () => {
     expect(toolUrlSchema.parse(" https://example.com/tool ")).toBe("https://example.com/tool");
     expect(toolUrlSchema.parse(null)).toBeNull();
     expect(toolUrlSchema.parse(undefined)).toBeNull();
+  });
+});
+
+describe("connected MCP schemas", () => {
+  test("rejects blank tool names and trims valid names", () => {
+    const selection = {
+      mcpServerId: "22222222-2222-4222-8222-222222222222",
+      enabled: true
+    };
+
+    expect(agentMcpToolSelectionSchema.safeParse({ ...selection, toolName: "   " }).success).toBe(false);
+    expect(agentMcpToolSelectionSchema.parse({ ...selection, toolName: " book_appointment " }).toolName).toBe(
+      "book_appointment"
+    );
+  });
+
+  test("types cached tool names while preserving provider metadata", () => {
+    const parsed = mcpIntegrationSchema.parse({
+      id: "11111111-1111-4111-8111-111111111111",
+      organizationId: "22222222-2222-4222-8222-222222222222",
+      name: "Calendly",
+      url: "https://mcp.calendly.example.com",
+      status: "active",
+      authType: "oauth2",
+      cachedTools: [{ name: "find_available_times", description: "Find slots", providerMetadata: { version: 1 } }],
+      cachedToolsAt: "2026-07-22T00:00:00.000Z",
+      createdAt: "2026-07-22T00:00:00.000Z",
+      updatedAt: "2026-07-22T00:00:00.000Z"
+    });
+
+    expect(parsed.cachedTools[0]).toEqual({
+      name: "find_available_times",
+      description: "Find slots",
+      providerMetadata: { version: 1 }
+    });
   });
 });
 

@@ -7,19 +7,24 @@ import type { EnsureAgentToolsInput, GetOrCreateAgentInput, PatchAgentInput } fr
 import type {
   Agent,
   AgentAssignedPhoneNumber,
+  AgentMcpTool,
+  AgentMcpToolSelection,
   AgentTool,
   AgentToolInput,
   CreateKnowledgeDocumentRequest,
-  KnowledgeDocument
+  KnowledgeDocument,
+  McpIntegration
 } from "./types";
 import {
   assignPhoneNumber,
+  configureAgentMcpTools,
   createRealtimeSession,
   deleteAgentTool,
   deleteKnowledgeDocument,
   ensureAgentTools,
   getOrCreateAgent,
   listKnowledgeDocuments,
+  listMcpIntegrations,
   patchAgent,
   unassignPhoneNumber,
   updateAgentTool,
@@ -117,6 +122,7 @@ interface StubCalls {
   uploadKnowledgeText: Array<{ agentId: string; body: CreateKnowledgeDocumentRequest }>;
   patchAgent: Array<{ agentId: string; body: unknown }>;
   listAgentsCount: number;
+  setAgentMcpTools: Array<{ agentId: string; tools: AgentMcpToolSelection[] }>;
 }
 
 function stubClient(
@@ -136,6 +142,9 @@ function stubClient(
     ) => Promise<CreatedKnowledgeDocumentResponse>;
     deleteKnowledgeDocument: (agentId: string, documentId: string) => Promise<{ id: string }>;
     createRealtimeSession: (agentId: string) => Promise<RealtimeSessionResponse>;
+    listMcpIntegrations: () => Promise<McpIntegration[]>;
+    listAgentMcpTools: (agentId: string) => Promise<AgentMcpTool[]>;
+    setAgentMcpTools: (agentId: string, tools: AgentMcpToolSelection[]) => Promise<AgentMcpTool[]>;
   }>
 ): { client: OrbitaliClient; calls: StubCalls } {
   const calls: StubCalls = {
@@ -147,7 +156,8 @@ function stubClient(
     uploadKnowledgeFile: [],
     uploadKnowledgeText: [],
     patchAgent: [],
-    listAgentsCount: 0
+    listAgentsCount: 0,
+    setAgentMcpTools: []
   };
 
   const client = {
@@ -204,6 +214,12 @@ function stubClient(
     createRealtimeSession: async (agentId: string) => {
       if (!handlers.createRealtimeSession) throw new Error("not stubbed");
       return handlers.createRealtimeSession(agentId);
+    },
+    listMcpIntegrations: async () => (handlers.listMcpIntegrations ? handlers.listMcpIntegrations() : []),
+    listAgentMcpTools: async (agentId: string) => (handlers.listAgentMcpTools ? handlers.listAgentMcpTools(agentId) : []),
+    setAgentMcpTools: async (agentId: string, tools: AgentMcpToolSelection[]) => {
+      calls.setAgentMcpTools.push({ agentId, tools });
+      return handlers.setAgentMcpTools ? handlers.setAgentMcpTools(agentId, tools) : [];
     }
   } as unknown as OrbitaliClient;
 
@@ -244,6 +260,57 @@ describe("getOrCreateAgent", () => {
 
     expect(result).toEqual({ agentId: "forced-agent", created: true });
     expect(calls.listAgentsCount).toBe(0);
+  });
+
+  test("assigns selected connected MCP tools after creating an agent", async () => {
+    const selection = {
+      mcpServerId: "11111111-1111-4111-8111-111111111111",
+      toolName: "book_appointment",
+      enabled: true
+    };
+    const assigned = [{ id: "22222222-2222-4222-8222-222222222222", agentId: "new-agent", ...selection }];
+    const { client, calls } = stubClient({
+      listAgents: async () => [],
+      createAgent: async () => ({ id: "new-agent" }),
+      setAgentMcpTools: async () => assigned
+    });
+
+    const result = await getOrCreateAgent(client, createAgentInput({ mcpTools: [selection] }));
+
+    expect(result).toEqual({ agentId: "new-agent", created: true, mcpTools: assigned });
+    expect(calls.setAgentMcpTools).toEqual([{ agentId: "new-agent", tools: [selection] }]);
+    expect((calls.createAgent[0] as { mcpTools?: unknown }).mcpTools).toBeUndefined();
+  });
+});
+
+describe("connected MCP tools", () => {
+  test("lists integrations and replaces an agent's assignments", async () => {
+    const selection = {
+      mcpServerId: "11111111-1111-4111-8111-111111111111",
+      toolName: "find_available_times",
+      enabled: true
+    };
+    const assigned = [{ id: "22222222-2222-4222-8222-222222222222", agentId: "agent-1", ...selection }];
+    const integration = {
+      id: selection.mcpServerId,
+      organizationId: "33333333-3333-4333-8333-333333333333",
+      name: "Calendly",
+      url: "https://mcp.calendly.example.com",
+      status: "active" as const,
+      authType: "oauth2" as const,
+      cachedTools: [{ name: selection.toolName }],
+      cachedToolsAt: "2026-07-22T00:00:00.000Z",
+      createdAt: "2026-07-22T00:00:00.000Z",
+      updatedAt: "2026-07-22T00:00:00.000Z"
+    };
+    const { client, calls } = stubClient({
+      listMcpIntegrations: async () => [integration],
+      setAgentMcpTools: async () => assigned
+    });
+
+    await expect(listMcpIntegrations(client)).resolves.toEqual([integration]);
+    await expect(configureAgentMcpTools(client, "agent-1", [selection])).resolves.toEqual(assigned);
+    expect(calls.setAgentMcpTools).toEqual([{ agentId: "agent-1", tools: [selection] }]);
   });
 });
 

@@ -17,12 +17,15 @@ import {
   type Agent,
   type AgentAssignedPhoneNumber,
   type AgentLogsResponse,
+  type AgentMcpTool,
+  type AgentMcpToolSelection,
   type AgentTool,
   type AgentToolInput,
   type CallDetail,
   type CallSummary,
   type CreateAgentRequest,
   type KnowledgeDocument,
+  type McpIntegration,
   type PhoneNumber
 } from "./types";
 
@@ -32,6 +35,7 @@ export interface GetOrCreateAgentResult {
   agentId: string;
   created: boolean;
   matchedAgent?: Agent;
+  mcpTools?: AgentMcpTool[];
 }
 
 export interface ToolResult {
@@ -61,6 +65,22 @@ export function listAgentTools(client: OrbitaliClient, agentId: string): Promise
   return client.listAgentTools(agentId);
 }
 
+export function listMcpIntegrations(client: OrbitaliClient): Promise<McpIntegration[]> {
+  return client.listMcpIntegrations();
+}
+
+export function listAgentMcpTools(client: OrbitaliClient, agentId: string): Promise<AgentMcpTool[]> {
+  return client.listAgentMcpTools(agentId);
+}
+
+export function configureAgentMcpTools(
+  client: OrbitaliClient,
+  agentId: string,
+  tools: AgentMcpToolSelection[]
+): Promise<AgentMcpTool[]> {
+  return client.setAgentMcpTools(agentId, tools);
+}
+
 export function listKnowledgeDocuments(client: OrbitaliClient, agentId: string): Promise<KnowledgeDocument[]> {
   return client.listKnowledgeDocuments(agentId);
 }
@@ -75,7 +95,7 @@ export function listKnowledgeDocuments(client: OrbitaliClient, agentId: string):
  * so concurrent bootstraps can still create duplicates.
  */
 export async function getOrCreateAgent(client: OrbitaliClient, input: GetOrCreateAgentInput): Promise<GetOrCreateAgentResult> {
-  const { reuseExisting, ...createBody } = input;
+  const { reuseExisting, mcpTools, ...createBody } = input;
   const request = createAgentRequestSchema.parse(createBody) as CreateAgentRequest;
 
   if (reuseExisting) {
@@ -83,12 +103,14 @@ export async function getOrCreateAgent(client: OrbitaliClient, input: GetOrCreat
     const matchedAgent = agents.find((agent) => isSameAgent(agent, request));
 
     if (matchedAgent) {
-      return { agentId: matchedAgent.id, created: false, matchedAgent };
+      const assignedMcpTools = mcpTools ? await client.setAgentMcpTools(matchedAgent.id, mcpTools) : undefined;
+      return { agentId: matchedAgent.id, created: false, matchedAgent, ...(assignedMcpTools ? { mcpTools: assignedMcpTools } : {}) };
     }
   }
 
   const { id } = await client.createAgent(request);
-  return { agentId: id, created: true };
+  const assignedMcpTools = mcpTools ? await client.setAgentMcpTools(id, mcpTools) : undefined;
+  return { agentId: id, created: true, ...(assignedMcpTools ? { mcpTools: assignedMcpTools } : {}) };
 }
 
 /**

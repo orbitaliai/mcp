@@ -6,7 +6,8 @@ agents configure Orbitali voice agents through the public REST API (`/public/v1`
 It wraps the API with higher-level, workflow-safe tools so an agent can create or reuse voice
 agents, create, update, or delete tools, and mint realtime sessions without hand-writing REST calls.
 It can also upload, list, and delete agent knowledge documents, manage phone number assignments,
-and inspect call history and agent runtime logs.
+inspect call history and agent runtime logs, and assign tools from MCP integrations already connected
+in the Orbitali dashboard.
 
 The npm package runs locally over **stdio**. The production deployment also exposes a remote
 Streamable HTTP endpoint for clients that support hosted MCP servers.
@@ -28,6 +29,9 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | -------------------------- | ----------------------------------------------------------------------------------------------- |
 | `list_agents`              | List the voice agents in the organization.                                                      |
 | `list_agent_tools`         | List the custom tools configured on an agent.                                                   |
+| `list_mcp_integrations`    | List connected MCP integrations and their available cached tools without exposing credentials. |
+| `list_agent_mcp_tools`     | List connected MCP tools assigned to an agent.                                                  |
+| `configure_agent_mcp_tools`| Replace an agent's connected MCP tool assignments.                                              |
 | `get_or_create_agent`      | Reuse an agent matching name, agentType, language, voiceName, and serverUrl, or create one.     |
 | `patch_agent`              | Update agent fields (requires `expectedUpdatedAt` for optimistic concurrency).                  |
 | `ensure_agent_tools`       | Create tools whose name does not already exist; optionally update existing matching tools.      |
@@ -43,6 +47,11 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `list_calls`               | List recent call history, optionally filtered by agent.                                         |
 | `get_call`                 | Get one call with summary, transcript messages, tool invocations, and LLM usage.                |
 | `list_agent_logs`          | List agent runtime logs from the last 24 hours (severity, session, pagination filters).         |
+
+To assign connected MCP tools during creation or reuse, call `list_mcp_integrations` first and use
+the exact returned server IDs and tool names in `get_or_create_agent.mcpTools`. Use
+`list_agent_mcp_tools` to inspect existing assignments and `configure_agent_mcp_tools` to replace
+them later.
 
 ## Choosing an agent type
 

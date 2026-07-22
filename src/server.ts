@@ -6,6 +6,7 @@ import { OrbitaliApiError } from "./client";
 import { SERVER_INSTRUCTIONS } from "./instructions";
 import {
   assignPhoneNumberInputSchema,
+  configureAgentMcpToolsInputSchema,
   createRealtimeSessionInputSchema,
   deleteAgentToolInputSchema,
   deleteKnowledgeDocumentInputSchema,
@@ -13,6 +14,7 @@ import {
   getCallInputSchema,
   getOrCreateAgentInputSchema,
   listAgentLogsInputSchema,
+  listAgentMcpToolsInputSchema,
   listCallsInputSchema,
   listKnowledgeDocumentsInputSchema,
   listAgentToolsInputSchema,
@@ -24,6 +26,7 @@ import {
 } from "./schemas";
 import {
   assignPhoneNumber,
+  configureAgentMcpTools,
   createRealtimeSession,
   deleteAgentTool,
   deleteKnowledgeDocument,
@@ -31,8 +34,10 @@ import {
   getCall,
   getOrCreateAgent,
   listAgentLogs,
+  listAgentMcpTools,
   listCalls,
   listKnowledgeDocuments,
+  listMcpIntegrations,
   listAgentTools,
   listAgents,
   listPhoneNumbers,
@@ -68,11 +73,42 @@ export function createServer(client: OrbitaliClient): McpServer {
   );
 
   server.registerTool(
+    "list_mcp_integrations",
+    {
+      title: "List MCP integrations",
+      description:
+        "List the authenticated organization's connected MCP servers and their cached tool definitions. Use this to find an integration such as Calendly and the exact server id and tool names before assigning tools to an agent. Credentials are never returned."
+    },
+    () => runTool(() => listMcpIntegrations(client))
+  );
+
+  server.registerTool(
+    "list_agent_mcp_tools",
+    {
+      title: "List agent MCP tools",
+      description: "List the connected MCP tools currently assigned to an Orbitali agent.",
+      inputSchema: listAgentMcpToolsInputSchema
+    },
+    ({ agentId }) => runTool(() => listAgentMcpTools(client, agentId))
+  );
+
+  server.registerTool(
+    "configure_agent_mcp_tools",
+    {
+      title: "Configure agent MCP tools",
+      description:
+        "Replace an agent's connected MCP tool assignments. Discover exact server ids and tool names with list_mcp_integrations first; pass an empty tools array to clear all assignments.",
+      inputSchema: configureAgentMcpToolsInputSchema
+    },
+    ({ agentId, tools }) => runTool(() => configureAgentMcpTools(client, agentId, tools))
+  );
+
+  server.registerTool(
     "get_or_create_agent",
     {
       title: "Get or create agent",
       description:
-        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, and serverUrl. Select agentType from the application architecture: static for no-code fixed behavior without custom tools, http for independent per-tool HTTP endpoints, or webhook for one event endpoint and optional dynamic prompts. Set reuseExisting to false to always create.",
+        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, and serverUrl. Select agentType from the application architecture: static for no-code fixed behavior without custom tools, http for independent per-tool HTTP endpoints, or webhook for one event endpoint and optional dynamic prompts. To use connected MCP tools, call list_mcp_integrations first and pass the desired selections in mcpTools. Set reuseExisting to false to always create.",
       inputSchema: getOrCreateAgentInputSchema
     },
     (input) => runTool(() => getOrCreateAgent(client, input))

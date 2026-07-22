@@ -1,5 +1,6 @@
 import {
   agentCreateServerFieldsSchema,
+  agentMcpToolSelectionSchema,
   agentTypeSchema,
   agentLogSeveritySchema,
   agentPromptFieldsBaseSchema,
@@ -32,6 +33,22 @@ export const listAgentToolsInputSchema = z.object({
   agentId: agentIdSchema
 });
 
+const mcpToolSelectionInputSchema = agentMcpToolSelectionSchema.extend({
+  enabled: z.boolean().default(true)
+});
+
+export const listAgentMcpToolsInputSchema = z.object({
+  agentId: agentIdSchema
+});
+
+export const configureAgentMcpToolsInputSchema = z.object({
+  agentId: agentIdSchema,
+  tools: z
+    .array(mcpToolSelectionInputSchema)
+    .max(200)
+    .describe("The complete desired MCP tool selection. This replaces the agent's current MCP tool assignments; use an empty array to clear them.")
+});
+
 export const getOrCreateAgentInputSchema = agentCreateServerFieldsSchema
   .extend({
     agentType: agentTypeSchema
@@ -41,7 +58,12 @@ export const getOrCreateAgentInputSchema = agentCreateServerFieldsSchema
     reuseExisting: z
       .boolean()
       .default(true)
-      .describe("Reuse an existing agent that matches name, agentType, language, voiceName, and serverUrl.")
+      .describe("Reuse an existing agent that matches name, agentType, language, voiceName, and serverUrl."),
+    mcpTools: z
+      .array(mcpToolSelectionInputSchema)
+      .max(200)
+      .optional()
+      .describe("MCP tools to assign after creating or reusing the agent. Discover exact server ids and tool names with list_mcp_integrations first.")
   });
 
 export const patchAgentInputSchema = patchAgentRequestSchema.extend({
