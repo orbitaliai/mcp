@@ -48,6 +48,11 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `get_call`                 | Get one call with summary, transcript messages, tool invocations, and LLM usage.                |
 | `list_agent_logs`          | List agent runtime logs from the last 24 hours (severity, session, pagination filters).         |
 
+To assign connected MCP tools during creation or reuse, call `list_mcp_integrations` first and use
+the exact returned server IDs and tool names in `get_or_create_agent.mcpTools`. Use
+`list_agent_mcp_tools` to inspect existing assignments and `configure_agent_mcp_tools` to replace
+them later.
+
 ## Choosing an agent type
 
 The MCP server sends coding agents workflow instructions during MCP initialization and requires an

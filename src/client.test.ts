@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { OrbitaliApiError, OrbitaliClient, type FetchLike } from "./client";
+import type { AgentMcpToolSelection } from "./types";
 
 const config = { apiKey: "sk_test", baseUrl: "https://api.example.com" };
 
@@ -63,13 +64,20 @@ describe("OrbitaliClient", () => {
   });
 
   test("replaces an agent's connected MCP tools with PUT", async () => {
-    const tools = [{ mcpServerId: "server-1", toolName: "book_appointment", enabled: true }];
-    const assigned = [{ id: "assignment-1", agentId: "agent-1", ...tools[0]! }];
+    const agentId = "11111111-1111-4111-8111-111111111111";
+    const tools: AgentMcpToolSelection[] = [
+      {
+        mcpServerId: "22222222-2222-4222-8222-222222222222",
+        toolName: "book_appointment",
+        enabled: true
+      }
+    ];
+    const assigned = [{ id: "33333333-3333-4333-8333-333333333333", agentId, ...tools[0]! }];
     const { fetchImpl, calls } = mockFetch(assigned, 200);
     const client = new OrbitaliClient(config, fetchImpl);
 
-    expect(await client.setAgentMcpTools("agent-1", tools as never)).toEqual(assigned);
-    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/agents/agent-1/mcp-tools");
+    expect(await client.setAgentMcpTools(agentId, tools)).toEqual(assigned);
+    expect(calls[0]?.url).toBe(`https://api.example.com/public/v1/agents/${agentId}/mcp-tools`);
     expect(calls[0]?.init?.method).toBe("PUT");
     expect(calls[0]?.init?.body).toBe(JSON.stringify(tools));
   });

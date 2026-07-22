@@ -116,6 +116,10 @@ export type AgentTool = z.infer<typeof agentToolSchema>;
 export const agentToolInputSchema = agentToolSchema.omit({ id: true });
 export type AgentToolInput = z.infer<typeof agentToolInputSchema>;
 
+export const mcpIntegrationToolSchema = z.looseObject({
+  name: z.string().trim().min(1)
+});
+
 export const mcpIntegrationSchema = z.object({
   id: z.uuid(),
   organizationId: z.uuid(),
@@ -123,7 +127,7 @@ export const mcpIntegrationSchema = z.object({
   url: z.url(),
   status: z.enum(["pending", "active", "inactive"]),
   authType: z.enum(["none", "headers", "oauth2"]),
-  cachedTools: z.array(z.unknown()),
+  cachedTools: z.array(mcpIntegrationToolSchema),
   cachedToolsAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -134,7 +138,7 @@ export const agentMcpToolSchema = z.object({
   id: z.uuid(),
   agentId: z.uuid(),
   mcpServerId: z.uuid(),
-  toolName: z.string(),
+  toolName: z.string().trim().min(1),
   enabled: z.boolean()
 });
 export type AgentMcpTool = z.infer<typeof agentMcpToolSchema>;
