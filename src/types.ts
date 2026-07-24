@@ -2,6 +2,9 @@ import { z } from "zod";
 
 z.config({ jitless: true });
 
+export const backgroundSoundSchema = z.enum(["none", "keyboard", "typing"]);
+export const ambientSoundSchema = z.enum(["none", "office1", "office2", "office"]);
+
 export const toolRuntimeMetadataSchema = z.enum([
   "callId",
   "sessionId",
@@ -41,7 +44,8 @@ export const agentSchema = z.object({
   knowledgeDocumentCount: z.number().int().nonnegative(),
   callsToday: z.number().int().nonnegative(),
   successRate: z.number().nonnegative(),
-  backgroundSound: z.string(),
+  backgroundSound: backgroundSoundSchema,
+  ambientSound: ambientSoundSchema,
   updatedAt: z.iso.datetime()
 });
 export type Agent = z.infer<typeof agentSchema>;
@@ -184,7 +188,11 @@ export const agentServerFieldsSchema = z.object({
   handoffPhoneNumber: z.string().trim().max(32).nullable(),
   backgroundSound: z.preprocess(
     (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
-    z.string().trim().max(50).default("none")
+    backgroundSoundSchema.default("none")
+  ),
+  ambientSound: z.preprocess(
+    (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
+    ambientSoundSchema.default("none")
   )
 });
 

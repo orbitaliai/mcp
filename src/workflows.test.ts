@@ -49,6 +49,7 @@ function makeAgent(overrides: Partial<Agent> = {}): Agent {
     callsToday: 0,
     successRate: 0,
     backgroundSound: "none",
+    ambientSound: "none",
     updatedAt: "2026-07-02T00:00:00.000Z",
     ...overrides
   };
@@ -101,6 +102,7 @@ function createAgentInput(overrides: Partial<GetOrCreateAgentInput> = {}): GetOr
     handoffPhoneNumber: null,
     phoneNumberAssignments: [],
     backgroundSound: "none",
+    ambientSound: "none",
     promptType: "static",
     identity: "You are a support agent.",
     instructions: "Help the caller.",
