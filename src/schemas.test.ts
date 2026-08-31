@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { getOrCreateAgentInputSchema, uploadKnowledgeDocumentInputSchema } from "./schemas";
-import { agentMcpToolSelectionSchema, agentToolInputSchema, mcpIntegrationSchema } from "./types";
+import { agentMcpToolSelectionSchema, agentToolInputSchema, callSummarySchema, mcpIntegrationSchema } from "./types";
 
 const agentId = "11111111-1111-4111-8111-111111111111";
 
@@ -100,6 +100,27 @@ describe("connected MCP schemas", () => {
       description: "Find slots",
       providerMetadata: { version: 1 }
     });
+  });
+});
+
+describe("call usage schema", () => {
+  test("accepts allowance and overage allocation without a per-call cost", () => {
+    expect(
+      callSummarySchema.parse({
+        id: "33333333-3333-4333-8333-333333333333",
+        agentName: "Receptionist",
+        fromNumber: "+15550001000",
+        toNumber: "+15550002000",
+        status: "completed",
+        durationSeconds: 30,
+        startedAt: "2026-08-17T10:02:00.000Z",
+        toolInvocations: 0,
+        billableMinutes: 0.5,
+        includedMinutes: 0.17,
+        overageMinutes: 0.33,
+        usageClassification: "split"
+      })
+    ).toMatchObject({ usageClassification: "split", overageMinutes: 0.33 });
   });
 });
 
