@@ -253,7 +253,10 @@ export const callSummarySchema = z.object({
   durationSeconds: z.number().int().nonnegative(),
   startedAt: z.iso.datetime(),
   toolInvocations: z.number().int().nonnegative(),
-  usageCostEur: z.number().nonnegative()
+  billableMinutes: z.number().nonnegative(),
+  includedMinutes: z.number().nonnegative(),
+  overageMinutes: z.number().nonnegative(),
+  usageClassification: z.enum(["included", "overage", "split", "trial", "unallocated"])
 });
 export type CallSummary = z.infer<typeof callSummarySchema>;
 
