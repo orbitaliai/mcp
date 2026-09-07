@@ -254,3 +254,19 @@ describe("OrbitaliClient", () => {
     }
   });
 });
+
+test("SIP client keeps account-scoped public paths and request shapes", async () => {
+  const { fetchImpl, calls } = mockFetch({ id: "sip-id" }, 200);
+  const client = new OrbitaliClient(config, fetchImpl);
+  const input = { displayLabel: "SIP", authMode: "credentials" as const, sourceCidrs: [], enabled: true };
+  await client.listSipConnections();
+  await client.saveSipConnection(input);
+  await client.saveSipConnection({ ...input, enabled: false }, "sip-id");
+  await client.rotateSipConnection("sip-id");
+  await client.addSipNumber({ connectionId: "sip-id", phoneNumber: "+34910000001" });
+  await client.deleteSipConnection("sip-id");
+  expect(calls.map(c => c.init?.method)).toEqual(["GET", "POST", "PUT", "POST", "POST", "DELETE"]);
+  expect(calls.every(c => c.url.startsWith("https://api.example.com/public/v1/telephony/sip/"))).toBe(true);
+  expect(calls[2]?.init?.body).toBe(JSON.stringify({ ...input, enabled: false }));
+  expect(calls[3]?.url).toEndWith("/connections/sip-id/rotate");
+});

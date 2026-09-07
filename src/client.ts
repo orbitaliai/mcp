@@ -1,3 +1,4 @@
+import type { SipConnection, SipConnectionInput } from "./types";
 import type { OrbitaliMcpConfig } from "./config";
 import type {
   Agent,
@@ -207,6 +208,14 @@ export class OrbitaliClient {
   listAgentLogs(agentId: string, params: ListAgentLogsParams = {}): Promise<AgentLogsResponse> {
     return this.request<AgentLogsResponse>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/logs${toQueryString(params)}`);
   }
+
+  listSipConnections(): Promise<SipConnection[]> { return this.request("GET", "/public/v1/telephony/sip/connections"); }
+  saveSipConnection(input: SipConnectionInput, id?: string): Promise<{ connection: SipConnection; password?: string }> {
+    return this.request(id ? "PUT" : "POST", "/public/v1/telephony/sip/connections" + (id ? "/" + encodeURIComponent(id) : ""), input);
+  }
+  rotateSipConnection(id: string): Promise<{ connection: SipConnection; password?: string }> { return this.request("POST", `/public/v1/telephony/sip/connections/${encodeURIComponent(id)}/rotate`, {}); }
+  deleteSipConnection(id: string): Promise<{ id: string }> { return this.request("DELETE", `/public/v1/telephony/sip/connections/${encodeURIComponent(id)}`); }
+  addSipNumber(input: { connectionId: string; phoneNumber: string }): Promise<{ id: string }> { return this.request("POST", "/public/v1/telephony/sip/numbers", input); }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = {
