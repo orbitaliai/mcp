@@ -2,6 +2,9 @@ import { z } from "zod";
 
 z.config({ jitless: true });
 
+export const backgroundSoundSchema = z.enum(["none", "keyboard", "typing"]);
+export const ambientSoundSchema = z.enum(["none", "office1", "office2", "office"]);
+
 export const toolRuntimeMetadataSchema = z.enum([
   "callId",
   "sessionId",
@@ -41,7 +44,10 @@ export const agentSchema = z.object({
   knowledgeDocumentCount: z.number().int().nonnegative(),
   callsToday: z.number().int().nonnegative(),
   successRate: z.number().nonnegative(),
-  backgroundSound: z.string(),
+  backgroundSound: backgroundSoundSchema,
+  ambientSound: ambientSoundSchema.default("none"),
+  ambientSoundVolume: z.number().min(0).max(1).default(0.25),
+  ambientSoundDucking: z.boolean().default(true),
   updatedAt: z.iso.datetime()
 });
 export type Agent = z.infer<typeof agentSchema>;
@@ -183,9 +189,15 @@ export const agentServerFieldsSchema = z.object({
   serverSecret: z.string().trim().max(500).nullable(),
   handoffPhoneNumber: z.string().trim().max(32).nullable(),
   backgroundSound: z.preprocess(
-    (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
-    z.string().trim().max(50).default("none")
-  )
+    (val) => (typeof val === "string" ? val.trim() || undefined : val),
+    backgroundSoundSchema.default("none")
+  ),
+  ambientSound: z.preprocess(
+    (val) => (typeof val === "string" ? val.trim() || undefined : val),
+    ambientSoundSchema.default("none")
+  ),
+  ambientSoundVolume: z.number().min(0).max(1).default(0.25),
+  ambientSoundDucking: z.boolean().default(true)
 });
 
 export const agentCreateServerFieldsSchema = agentServerFieldsSchema.extend({
@@ -215,6 +227,8 @@ export const updateAgentServerFieldsSchema = agentServerFieldsSchema.extend({
 });
 
 export const patchAgentRequestSchema = updateAgentServerFieldsSchema.merge(agentPromptFieldsBaseSchema).partial().extend({
+  ambientSoundVolume: z.number().min(0).max(1).optional(),
+  ambientSoundDucking: z.boolean().optional(),
   expectedUpdatedAt: z.iso.datetime()
 });
 export type PatchAgentRequest = z.infer<typeof patchAgentRequestSchema>;

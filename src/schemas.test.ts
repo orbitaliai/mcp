@@ -50,6 +50,17 @@ describe("getOrCreateAgentInputSchema", () => {
       );
     }
   });
+
+  test("keeps ambient and tool-calling sounds independent", () => {
+    const parsed = getOrCreateAgentInputSchema.parse({
+      ...validAgentInput("static"),
+      backgroundSound: "keyboard",
+      ambientSound: "office1"
+    });
+
+    expect(parsed.backgroundSound).toBe("keyboard");
+    expect(parsed.ambientSound).toBe("office1");
+  });
 });
 
 describe("agentToolInputSchema", () => {
