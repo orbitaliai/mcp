@@ -50,6 +50,8 @@ function makeAgent(overrides: Partial<Agent> = {}): Agent {
     successRate: 0,
     backgroundSound: "none",
     ambientSound: "none",
+    ambientSoundVolume: 0.25,
+    ambientSoundDucking: true,
     updatedAt: "2026-07-02T00:00:00.000Z",
     ...overrides
   };
