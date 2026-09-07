@@ -164,3 +164,9 @@ Intentionally out of scope: OAuth, phone number purchasing/claiming, billing, an
 dashboard-only endpoints. Phone number assignment, call history, and agent logs are supported;
 buying or claiming numbers still happens in the dashboard. The public REST API remains the source
 of truth; `ensure_agent_tools` matches existing tools by exact name.
+
+### Inbound SIP
+
+When the platform has SIP enabled, use `save_sip_connection` to create a credential-authenticated or IPv4-allowlisted connection, `add_sip_number` to link an E.164 number, and `assign_phone_number` to choose its agent. `list_sip_connections` distinguishes applied configuration from a verified call. Use `rotate_sip_password` to replace credentials, or update with `enabled: false` to disable new calls. Outbound SIP, REGISTER and transfers are not supported. IP ranges cannot overlap across connections, even disabled ones.
+
+Passwords appear only on creation/rotation. Hand them securely to the operator and do not persist them in agent prompts or logs.

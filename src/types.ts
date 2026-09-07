@@ -225,7 +225,7 @@ export const phoneNumberSchema = z.object({
   friendlyName: z.string().min(1),
   status: z.enum(["claimed", "available", "released", "suspended"]),
   source: z.enum(["managed", "user"]),
-  provider: z.enum(["telnyx", "twilio"]),
+  provider: z.enum(["telnyx", "twilio", "sip"]),
   setupStatus: z.enum(["configured", "setup_required", "pending_verification"]),
   assignedAgentId: z.uuid().nullable(),
   assignedAgentName: z.string().nullable(),
@@ -326,3 +326,10 @@ export const agentLogsResponseSchema = z.object({
   })
 });
 export type AgentLogsResponse = z.infer<typeof agentLogsResponseSchema>;
+
+export const sipConnectionInputSchema = z.object({
+ displayLabel: z.string().trim().min(1).max(80), authMode: z.enum(["credentials", "ip"]),
+ sourceCidrs: z.array(z.string()).max(32).default([]), enabled: z.boolean().default(true)
+});
+export type SipConnectionInput = z.infer<typeof sipConnectionInputSchema>;
+export type SipConnection = SipConnectionInput & { id: string; username: string; destination: string; revision: string; provisioningStatus: "pending" | "applied" | "failed"; verifiedAt: string | null };
