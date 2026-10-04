@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { OrbitaliClient } from "./client";
+import { OrbitaliClient, type FetchLike } from "./client";
 import { SERVER_INSTRUCTIONS } from "./instructions";
 import { createServer } from "./server";
 
@@ -17,6 +17,41 @@ afterEach(async () => {
 });
 
 describe("MCP discovery metadata", () => {
+  test("get_agent reads configuration over authenticated GET and is read-only", async () => {
+    const agentId = "10000000-0000-4000-8000-000000000001";
+    const detail = {
+      agent: { id: agentId, updatedAt: "2026-10-04T10:00:00.000Z" },
+      promptConfig: { instructions: "Keep this text\nexactly", promptType: "static", greetingType: "none" }
+    };
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    await connect(async (url, init) => {
+      requests.push({ url, init });
+      return Response.json(detail);
+    });
+    const tool = (await client!.listTools()).tools.find(({ name }) => name === "get_agent");
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    expect(tool?.inputSchema.required).toContain("agentId");
+    const result = await client!.callTool({ name: "get_agent", arguments: { agentId } });
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toEqual(detail);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.url).toBe(`https://api.example.com/public/v1/agents/${agentId}`);
+    expect(requests[0]!.init?.method).toBe("GET");
+    expect(requests[0]!.init?.body).toBeUndefined();
+    expect(requests[0]!.init?.headers).toMatchObject({ Authorization: "Bearer sk_test" });
+    await client!.callTool({ name: "get_agent", arguments: { agentId: "not-a-uuid" } });
+    expect(requests).toHaveLength(1);
+  });
+
+  test("get_agent reports API errors without creating or modifying an agent", async () => {
+    await connect(async () => Response.json({ error: "Agent not found" }, { status: 404 }));
+    const result = await client!.callTool({ name: "get_agent", arguments: {
+      agentId: "10000000-0000-4000-8000-000000000001"
+    } });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({ error: "Agent not found", status: 404 });
+  });
+
   test("sends agent architecture guidance during initialization", async () => {
     await connect();
 
@@ -54,12 +89,12 @@ describe("MCP discovery metadata", () => {
   });
 });
 
-async function connect(): Promise<void> {
+async function connect(fetchImpl?: FetchLike): Promise<void> {
   server = createServer(
     new OrbitaliClient({
       apiKey: "sk_test",
       baseUrl: "https://api.example.com"
-    })
+    }, fetchImpl)
   );
   client = new Client({ name: "orbitali-mcp-test", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

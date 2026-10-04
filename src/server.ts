@@ -11,6 +11,7 @@ import {
   deleteAgentToolInputSchema,
   deleteKnowledgeDocumentInputSchema,
   ensureAgentToolsInputSchema,
+  getAgentInputSchema,
   getCallInputSchema,
   getOrCreateAgentInputSchema,
   listAgentLogsInputSchema,
@@ -31,6 +32,7 @@ import {
   deleteAgentTool,
   deleteKnowledgeDocument,
   ensureAgentTools,
+  getAgent,
   getCall,
   getOrCreateAgent,
   listAgentLogs,
@@ -60,6 +62,17 @@ export function createServer(client: OrbitaliClient): McpServer {
       description: "List the voice agents in the authenticated Orbitali organization."
     },
     () => runTool(() => listAgents(client))
+  );
+
+  server.registerTool(
+    "get_agent",
+    {
+      title: "Get agent configuration",
+      description: "Read an existing agent's settings, instructions, prompt and greeting modes, and agent.updatedAt for safe patching. Webhook credentials are omitted. promptConfig is null if no prompt is stored; dynamic prompt text is stored configuration, not a resolved per-call prompt. Use the separate tools to list custom tools, MCP assignments, knowledge documents, and phone assignments.",
+      inputSchema: getAgentInputSchema,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+    },
+    ({ agentId }) => runTool(() => getAgent(client, agentId))
   );
 
   server.registerTool(

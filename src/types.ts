@@ -80,6 +80,24 @@ export const agentPromptFieldsSchema = agentPromptFieldsBaseSchema.superRefine((
 });
 export type AgentPromptFields = z.infer<typeof agentPromptFieldsSchema>;
 
+export const publicAgentDetailsSchema = z.object({
+  agent: agentSchema.omit({ serverHeaders: true, serverSecret: true }).extend({
+    aiIdentityDisclosureTemplateId: z.string(),
+    ambientSound: z.string(),
+    ambientSoundVolume: z.number(),
+    ambientSoundDucking: z.boolean()
+  }),
+  promptConfig: z.object({
+    promptType: promptTypeSchema,
+    identity: z.string(),
+    instructions: z.string(),
+    greetingType: greetingTypeSchema,
+    staticGreeting: z.string().nullable(),
+    outboundGreeting: z.string().nullable()
+  }).nullable()
+});
+export type PublicAgentDetails = z.infer<typeof publicAgentDetailsSchema>;
+
 export const toolOnErrorSchema = z.enum(["return_error", "return_empty"]);
 export type ToolOnError = z.infer<typeof toolOnErrorSchema>;
 

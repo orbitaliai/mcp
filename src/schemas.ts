@@ -29,6 +29,8 @@ const knowledgeFilePathSchema = z
   })
   .describe("Local path to a .txt, .md, or .pdf file to upload as multipart/form-data.");
 
+export const getAgentInputSchema = z.object({ agentId: agentIdSchema });
+
 export const listAgentToolsInputSchema = z.object({
   agentId: agentIdSchema
 });
