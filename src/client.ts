@@ -1,6 +1,7 @@
 import type { OrbitaliMcpConfig } from "./config";
 import type {
   Agent,
+  PublicAgentDetails,
   AgentAssignedPhoneNumber,
   AgentLogSeverity,
   AgentLogsResponse,
@@ -107,6 +108,10 @@ export class OrbitaliClient {
 
   listAgents(): Promise<Agent[]> {
     return this.request<Agent[]>("GET", "/public/v1/agents");
+  }
+
+  getAgent(agentId: string): Promise<PublicAgentDetails> {
+    return this.request<PublicAgentDetails>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}`);
   }
 
   listAgentTools(agentId: string): Promise<AgentTool[]> {

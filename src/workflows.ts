@@ -15,6 +15,7 @@ import {
   createAgentRequestSchema,
   createKnowledgeDocumentRequestSchema,
   type Agent,
+  type PublicAgentDetails,
   type AgentAssignedPhoneNumber,
   type AgentLogsResponse,
   type AgentMcpTool,
@@ -59,6 +60,10 @@ export interface ToolFailure {
 
 export function listAgents(client: OrbitaliClient): Promise<Agent[]> {
   return client.listAgents();
+}
+
+export function getAgent(client: OrbitaliClient, agentId: string): Promise<PublicAgentDetails> {
+  return client.getAgent(agentId);
 }
 
 export function listAgentTools(client: OrbitaliClient, agentId: string): Promise<AgentTool[]> {

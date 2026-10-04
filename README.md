@@ -27,6 +27,7 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 
 | Tool                       | Description                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `get_agent`                | Read settings, stored instructions, prompt/greeting modes, and `agent.updatedAt`; webhook credentials are omitted. |
 | `list_agents`              | List the voice agents in the organization.                                                      |
 | `list_agent_tools`         | List the custom tools configured on an agent.                                                   |
 | `list_mcp_integrations`    | List connected MCP integrations and their available cached tools without exposing credentials. |
@@ -164,3 +165,18 @@ Intentionally out of scope: OAuth, phone number purchasing/claiming, billing, an
 dashboard-only endpoints. Phone number assignment, call history, and agent logs are supported;
 buying or claiming numbers still happens in the dashboard. The public REST API remains the source
 of truth; `ensure_agent_tools` matches existing tools by exact name.
+
+### Inspect before updating an agent
+
+Call `list_agents`, then `get_agent({ agentId })` before editing an existing agent.
+The response contains `agent` (including `updatedAt`) and `promptConfig` (including
+identity, instructions, prompt/greeting modes, and greetings). `promptConfig` is
+`null` when no prompt is stored. Dynamic prompts are not resolved and no webhook
+is invoked. `serverHeaders` and `serverSecret` are omitted; do not clear or replace
+credentials when patching unrelated settings. Pass `agent.updatedAt` as
+`expectedUpdatedAt` to `patch_agent`, and read back with `get_agent` afterward.
+Use the separate list tools for custom tools, MCP assignments, knowledge, and phones.
+
+This tool requires the API deployment that provides `GET /public/v1/agents/:id`.
+Deploy that endpoint before using this MCP release; older APIs cannot supply the
+stored prompt through `list_agents`.
