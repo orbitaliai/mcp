@@ -150,6 +150,10 @@ export class OrbitaliClient {
     );
   }
 
+  deleteAgent(agentId: string): Promise<CreatedResponse> {
+    return this.request<CreatedResponse>("DELETE", `/public/v1/agents/${encodeURIComponent(agentId)}`);
+  }
+
   deleteAgentTool(agentId: string, toolId: string): Promise<CreatedResponse> {
     return this.request<CreatedResponse>(
       "DELETE",

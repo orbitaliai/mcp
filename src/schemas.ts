@@ -86,6 +86,8 @@ export const updateAgentToolInputSchema = agentToolInputSchema.extend({
   toolId: z.uuid().describe("The Orbitali tool id (UUID).")
 });
 
+export const deleteAgentInputSchema = z.object({ agentId: agentIdSchema });
+
 export const deleteAgentToolInputSchema = z.object({
   agentId: agentIdSchema,
   toolId: z.uuid().describe("The Orbitali tool id (UUID).")
