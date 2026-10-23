@@ -28,3 +28,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): OrbitaliMcpCon
 export function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, "");
 }
+
+/** Preserve the legacy HTTP path unless an explicit OAuth resource is configured. */
+export function resolveMcpResource(env: NodeJS.ProcessEnv = process.env): string {
+  return env.MCP_OAUTH_RESOURCE || `https://mcp.orbitali.ai${env.MCP_PATH?.trim() || "/mcp"}`;
+}

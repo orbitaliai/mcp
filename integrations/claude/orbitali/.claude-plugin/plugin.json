@@ -1,0 +1,17 @@
+{
+  "name": "orbitali",
+  "version": "0.2.0",
+  "description": "Create and manage AI voice agents in Orbitali, including prompts, tools, knowledge, phone assignments, and call diagnostics.",
+  "author": {
+    "name": "Orbitali Systems SL"
+  },
+  "homepage": "https://www.orbitali.ai/",
+  "repository": "https://github.com/orbitaliai/mcp",
+  "license": "MIT",
+  "keywords": [
+    "voice",
+    "agents",
+    "telephony",
+    "orbitali"
+  ]
+}

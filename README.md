@@ -1,6 +1,6 @@
 # @orbitali/mcp
 
-A local [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that lets coding
+A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that lets coding
 agents configure Orbitali voice agents through the public REST API (`/public/v1`).
 
 It wraps the API with higher-level, workflow-safe tools so an agent can create or reuse voice
@@ -12,7 +12,21 @@ in the Orbitali dashboard.
 The npm package runs locally over **stdio**. The production deployment also exposes a remote
 Streamable HTTP endpoint for clients that support hosted MCP servers.
 
-## Configuration
+## OAuth host packages
+
+This branch adds inbound OAuth account linking for remote clients. Deployment of the
+matching authorization service and dashboard is required; production was not changed.
+Install the prepared ChatGPT/Codex, Claude Code or Gemini CLI package using
+[integrations/INSTALL.md](integrations/INSTALL.md). Actual client results and limitations
+are in [HOST-TESTS.md](integrations/HOST-TESTS.md). Rebuild ZIPs with
+`rtk python3 scripts/package-integrations.py`.
+
+OAuth uses sign-in, organization consent, PKCE, scoped access and revocation in Settings →
+Connected applications. Configure the remote process using `.env.example`: the API and
+MCP require the same private `MCP_EXCHANGE_SECRET`, issuer and exact resource URL.
+`ORBITALI_API_KEY` is required only for stdio. Existing remote API-key clients remain supported.
+
+## Stdio configuration
 
 The server is configured with environment variables:
 
@@ -75,13 +89,13 @@ agents support dynamic prompts and greetings.
 After installing from npm:
 
 ```bash
-ORBITALI_API_KEY=sk_your_key bunx @orbitali/mcp
+ORBITALI_API_KEY=orb_sk_REPLACE_LOCALLY bunx @orbitali/mcp
 ```
 
 From a local checkout of this repository:
 
 ```bash
-ORBITALI_API_KEY=sk_your_key bun run dev
+ORBITALI_API_KEY=orb_sk_REPLACE_LOCALLY bun run dev
 ```
 
 ## Running remotely
@@ -92,10 +106,10 @@ Remote MCP clients can connect to:
 https://mcp.orbitali.ai/mcp
 ```
 
-Pass your Orbitali API key as an HTTP header:
+OAuth-capable clients discover account linking automatically after deployment. Legacy clients may continue to pass an Orbitali API key as an HTTP header:
 
 ```text
-Authorization: Bearer sk_your_key
+Authorization: Bearer orb_sk_REPLACE_LOCALLY
 ```
 
 The hosted MCP process does not store or ship an Orbitali API key. Each request is authorized with
@@ -110,7 +124,7 @@ The server is launched by your coding agent over stdio. Point the agent at the p
 
 ```bash
 claude mcp add orbitali \
-  --env ORBITALI_API_KEY=sk_your_key \
+  --env ORBITALI_API_KEY=orb_sk_REPLACE_LOCALLY \
   -- bunx @orbitali/mcp
 ```
 
@@ -123,7 +137,7 @@ Or add it to `.mcp.json`:
       "command": "bunx",
       "args": ["@orbitali/mcp"],
       "env": {
-        "ORBITALI_API_KEY": "sk_your_key"
+        "ORBITALI_API_KEY": "orb_sk_REPLACE_LOCALLY"
       }
     }
   }
@@ -139,7 +153,7 @@ Or add it to `.mcp.json`:
       "command": "bunx",
       "args": ["@orbitali/mcp"],
       "env": {
-        "ORBITALI_API_KEY": "sk_your_key",
+        "ORBITALI_API_KEY": "orb_sk_REPLACE_LOCALLY",
         "ORBITALI_API_BASE_URL": "https://api.orbitali.ai"
       }
     }

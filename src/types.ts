@@ -233,6 +233,8 @@ export const updateAgentServerFieldsSchema = agentServerFieldsSchema.extend({
 });
 
 export const patchAgentRequestSchema = updateAgentServerFieldsSchema.merge(agentPromptFieldsBaseSchema).partial().extend({
+  // Optional defaulted arrays otherwise become [] during MCP validation.
+  phoneNumberAssignments: agentServerFieldsSchema.shape.phoneNumberAssignments.removeDefault().optional(),
   expectedUpdatedAt: z.iso.datetime()
 });
 export type PatchAgentRequest = z.infer<typeof patchAgentRequestSchema>;

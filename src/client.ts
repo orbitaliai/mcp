@@ -98,11 +98,13 @@ export interface RealtimeSessionResponse {
 export class OrbitaliClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
+  private readonly apiPrefix: string;
   private readonly fetchImpl: FetchLike;
 
-  constructor(config: OrbitaliMcpConfig, fetchImpl: FetchLike = fetch) {
+  constructor(config: OrbitaliMcpConfig | { accessToken: string; baseUrl: string; apiPrefix: "/mcp-resource/v1" }, fetchImpl: FetchLike = fetch) {
     this.baseUrl = config.baseUrl;
-    this.apiKey = config.apiKey;
+    this.apiKey = "accessToken" in config ? config.accessToken : config.apiKey;
+    this.apiPrefix = "apiPrefix" in config ? config.apiPrefix : "/public/v1";
     this.fetchImpl = fetchImpl;
   }
 
@@ -250,7 +252,7 @@ export class OrbitaliClient {
       init.signal = controller.signal;
 
       try {
-        response = await this.fetchImpl(`${this.baseUrl}${path}`, init);
+        response = await this.fetchImpl(`${this.baseUrl}${path.replace(/^\/public\/v1/, this.apiPrefix)}`, { ...init, redirect: "error" });
       } finally {
         clearTimeout(timeout);
       }
