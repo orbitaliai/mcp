@@ -1,13 +1,14 @@
 # Orbitali host installation
 
-Version 0.2.0, prepared 2026-10-23. Production OAuth is not deployed by this change.
+Version 0.2.1, prepared 2026-10-23. This release updates branding and listing copy.
+Production OAuth is not deployed by this change.
 Deploy compatible authorization services and MCP changes first. Every release package
 uses `https://mcp.orbitali.ai/mcp`. Local testing used copies pointing at localhost;
 no localhost endpoint or credential is shipped. See [verification](HOST-TESTS.md).
 
 ## ChatGPT / Codex desktop
 
-Extract `orbitali-openai-desktop-0.2.0.zip` to a permanent directory. Add that directory
+Extract `orbitali-openai-desktop-0.2.1.zip` to a permanent directory. Add that directory
 as a local marketplace using Codex's Plugins marketplace UI, or on a CLI exposing the
 plugin commands:
 
@@ -33,7 +34,7 @@ installation is not a cloud ChatGPT connector test. Cloud hosts need a reachable
 
 ## Claude Code
 
-Extract `orbitali-claude-marketplace-0.2.0.zip`, then:
+Extract `orbitali-claude-marketplace-0.2.1.zip`, then:
 
 ```sh
 rtk claude plugin validate /absolute/path/to/extracted-claude-package/orbitali
@@ -63,7 +64,7 @@ Public connector and plugin submissions are separate links on the
 
 ## Gemini CLI
 
-Extract `orbitali-gemini-extension-0.2.0.zip`; `gemini-extension.json` is at its root:
+Extract `orbitali-gemini-extension-0.2.1.zip`; `gemini-extension.json` is at its root:
 
 ```sh
 rtk gemini extensions install /absolute/path/to/extracted-gemini-package

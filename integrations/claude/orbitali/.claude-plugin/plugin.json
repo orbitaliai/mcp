@@ -1,6 +1,6 @@
 {
   "name": "orbitali",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Create and manage AI voice agents in Orbitali, including prompts, tools, knowledge, phone assignments, and call diagnostics.",
   "author": {
     "name": "Orbitali Systems SL"
