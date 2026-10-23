@@ -6,3 +6,4 @@ node_modules/
 .env.*
 !.env.example
 artifacts/
+infra/k8s/mcp/secrets.yaml

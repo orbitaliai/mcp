@@ -116,6 +116,25 @@ Authorization: Bearer orb_sk_REPLACE_LOCALLY
 The hosted MCP process does not store or ship an Orbitali API key. Each request is authorized with
 the key supplied by the MCP client.
 
+## Kubernetes secret setup
+
+Copy `infra/k8s/mcp/secrets.example.yaml` to `infra/k8s/mcp/secrets.yaml`
+(ignored by Git). Set `stringData.MCP_EXCHANGE_SECRET` to the same private
+value configured on the API, then apply the secret before the deployment:
+
+```bash
+rtk kubectl apply -f infra/k8s/mcp/secrets.yaml
+rtk kubectl apply -k infra/k8s/mcp
+```
+
+The secret is applied separately so the tracked Kustomize configuration works
+without the local secrets file. After changing an existing secret, restart the
+deployment to load the updated environment variable:
+
+```bash
+rtk kubectl rollout restart deployment/orbitali-mcp -n orbitali
+```
+
 ## Coding-agent configuration
 
 The server is launched by your coding agent over stdio. Point the agent at the package with
