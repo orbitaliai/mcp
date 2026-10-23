@@ -5,10 +5,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "artifacts"
 TARGETS = {
-    "orbitali-openai-desktop-0.2.0": "openai",
-    "orbitali-openai-submission-0.2.0": "openai-submission/orbitali",
-    "orbitali-claude-marketplace-0.2.0": "claude",
-    "orbitali-gemini-extension-0.2.0": "gemini/orbitali",
+    "orbitali-openai-desktop-0.2.1": "openai",
+    "orbitali-openai-submission-0.2.1": "openai-submission/orbitali",
+    "orbitali-claude-marketplace-0.2.1": "claude",
+    "orbitali-gemini-extension-0.2.1": "gemini/orbitali",
 }
 SECRET = re.compile(rb"(?:sk_(?:live|test)_[A-Za-z0-9]{16,}|orb_(?:oat|ort|mi|sk)_[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)")
 def inspect(files):
@@ -31,7 +31,7 @@ def inspect(files):
                 ext = doc["extensions"]["com.openai"]
                 assert len(ext["review"]["test_cases"]["positive"]) == 5
                 assert len(ext["review"]["test_cases"]["negative"]) == 3
-                assert doc["name"] == "orbitali" and doc["version"] == "0.2.0"
+                assert doc["name"] == "orbitali" and doc["version"] == "0.2.1"
                 for key in ["logo", "logoDark", "composerIcon", "composerIconDark"]:
                     image = str(path.parent / ext["interface"][key])
                     assert image in files, f"Missing icon {image}"

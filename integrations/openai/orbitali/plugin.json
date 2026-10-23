@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "orbitali",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Create and manage AI voice agents in Orbitali, including prompts, tools, knowledge, phone assignments, and call diagnostics.",
   "author": {
     "name": "Orbitali Systems SL"
@@ -17,7 +17,7 @@
       "interface": {
         "displayName": "Orbitali",
         "shortDescription": "Create and manage voice agents",
-        "longDescription": "Create and manage Orbitali AI voice agents through conversation. Configure instructions and greetings, connect HTTP endpoints or webhook integrations, select connected MCP tools, maintain knowledge documents, assign existing phone numbers, and inspect calls and agent logs. Requires an Orbitali account and OAuth account linking. New agents start as drafts; activation follows the user's request.",
+        "longDescription": "Create and manage Orbitali AI voice agents through conversation. Set instructions and greetings, connect tools and integrations, maintain knowledge documents, assign existing phone numbers, and review calls and agent logs. Sign in with your Orbitali account to connect. New agents start as drafts; activation follows your request. Sign up on the Orbitali platform, where an optional free trial and billing are handled.",
         "developerName": "Orbitali Systems SL",
         "category": "Communication",
         "capabilities": [],
@@ -95,7 +95,7 @@
         "commerce_description": "The plugin connects to an existing Orbitali account using OAuth account linking and does not sell products, initiate purchases, or process payments. Users sign up on the Orbitali platform and pay for the Orbitali service there, optionally using a free trial. Payments take place independently on the platform, outside the plugin; the plugin does not initiate subscriptions, upgrades, credit purchases, or checkout."
       },
       "publication": {
-        "release_notes": "OAuth account linking with organization consent, least-privilege access and revocation. Compatible desktop MCP configuration. Legacy API-key and local stdio support remain available.",
+        "release_notes": "Branding update with larger official Orbitali icons for light and dark mode and clearer account, optional trial, and billing information. OAuth configuration is unchanged.",
         "countries": [
           "AD",
           "AL",
