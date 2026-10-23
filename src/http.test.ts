@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHttpHandler, type HttpConfig } from "./http";
 import { toolScopes } from "./authorization";
+import { resolveMcpResource } from "./config";
 
 const config: HttpConfig = { baseUrl: "https://api.example.test", issuer: "https://api.example.test", resource: "https://mcp.example.test/mcp", exchangeSecret: "synthetic-service-credential", legacyApiKeys: true };
 function request(token?: string, method = "tools/list", params: unknown = {}) {
@@ -96,5 +97,28 @@ describe("MCP HTTP authorization boundary", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).result.isError).not.toBe(true);
     expect(sent).toEqual(patch);
+  });
+});
+
+describe("HTTP resource configuration compatibility", () => {
+  test.each([
+    [{}, "https://mcp.orbitali.ai/mcp"],
+    [{ MCP_PATH: "  /custom-mcp  " }, "https://mcp.orbitali.ai/custom-mcp"],
+    [{ MCP_PATH: " " }, "https://mcp.orbitali.ai/mcp"],
+    [{ MCP_PATH: "/legacy", MCP_OAUTH_RESOURCE: "https://mcp.example.test/explicit" }, "https://mcp.example.test/explicit"],
+  ] as const)("routes and advertises resource for %j", async (env, expected) => {
+    const resource = resolveMcpResource(env);
+    expect(resource).toBe(expected);
+    const handler = createHttpHandler({ ...config, resource }, async () => {
+      throw new Error("Unauthenticated discovery must not reach the API");
+    });
+    const url = new URL(resource);
+    const metadataUrl = `${url.origin}/.well-known/oauth-protected-resource${url.pathname}`;
+    const response = await handler(new Request(resource, { method: "POST" }));
+    expect(response.status).toBe(401);
+    expect(response.headers.get("www-authenticate")).toContain(`resource_metadata="${metadataUrl}"`);
+    const metadata = await (await handler(new Request(metadataUrl))).json();
+    expect(metadata.resource).toBe(expected);
+    expect((await handler(new Request(`${url.origin}/unconfigured-path`))).status).toBe(404);
   });
 });

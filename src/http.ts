@@ -2,7 +2,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
 import { OrbitaliClient, type FetchLike } from "./client";
-import { DEFAULT_API_BASE_URL, normalizeBaseUrl } from "./config";
+import { DEFAULT_API_BASE_URL, normalizeBaseUrl, resolveMcpResource } from "./config";
 import { SERVER_NAME, SERVER_VERSION, createServer } from "./server";
 import { toolScopes } from "./authorization";
 
@@ -72,7 +72,7 @@ export function createHttpHandler(config: HttpConfig, fetchImpl: FetchLike = fet
   };
 }
 if (import.meta.main) {
-  const resource = process.env.MCP_OAUTH_RESOURCE || "https://mcp.orbitali.ai/mcp";
+  const resource = resolveMcpResource();
   const issuer = process.env.MCP_OAUTH_ISSUER || "https://api.orbitali.ai";
   const baseUrl = normalizeBaseUrl(process.env.ORBITALI_API_BASE_URL || DEFAULT_API_BASE_URL);
   const exchangeSecret = process.env.MCP_EXCHANGE_SECRET || "";
