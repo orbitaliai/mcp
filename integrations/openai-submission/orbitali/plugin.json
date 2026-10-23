@@ -1,0 +1,152 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "orbitali",
+  "version": "0.2.0",
+  "description": "Create and manage AI voice agents in Orbitali, including prompts, tools, knowledge, phone assignments, and call diagnostics.",
+  "author": {
+    "name": "Orbitali Systems SL"
+  },
+  "keywords": [
+    "voice",
+    "agents",
+    "telephony",
+    "orbitali"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Orbitali",
+        "shortDescription": "Create and manage voice agents",
+        "longDescription": "Create and manage Orbitali AI voice agents through conversation. Configure instructions and greetings, connect HTTP endpoints or webhook integrations, select connected MCP tools, maintain knowledge documents, assign existing phone numbers, and inspect calls and agent logs. Requires an Orbitali account and OAuth account linking. New agents start as drafts; activation follows the user's request.",
+        "developerName": "Orbitali Systems SL",
+        "category": "Communication",
+        "capabilities": [],
+        "defaultPrompt": [
+          "Help me create an AI voice agent for my business.",
+          "Update the instructions and knowledge for an existing voice agent.",
+          "Help me investigate an Orbitali agent's recent calls and errors."
+        ],
+        "websiteURL": "https://www.orbitali.ai/",
+        "supportURL": "https://www.orbitali.ai/contact",
+        "privacyPolicyURL": "https://www.orbitali.ai/privacy",
+        "termsOfServiceURL": "https://orbitali.ai/terms",
+        "logo": "./assets/icon.png",
+        "composerIcon": "./assets/icon.png",
+        "logoDark": "./assets/icon-dark.png",
+        "composerIconDark": "./assets/icon-dark.png",
+        "brandColor": "#2D064F",
+        "brandColorDark": "#B8A5C2"
+      },
+      "review": {
+        "prompts": [
+          "Help me create an AI voice agent for my business.",
+          "Update the instructions and knowledge for an existing voice agent.",
+          "Help me investigate an Orbitali agent's recent calls and errors."
+        ],
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Inventory. Setup: dedicated reviewer organization with at least two sample agents in different statuses. Do not modify its resources.",
+              "prompt": "Show my Orbitali voice agents, including each agent’s name, type, language, and status.",
+              "tools_triggered": "list_agents",
+              "expected_behavior": "Call list_agents. Report only returned agents and their actual name, agentType, language, and status; distinguish a successful empty list from an access error. Do not mutate an agent."
+            },
+            {
+              "description": "Draft creation. Setup: dedicated reviewer organization; no existing agent named Review Library Reception. Verify voice eve is available before running this case. Sample hours are Monday to Friday, 09:00–17:00.",
+              "prompt": "Create a draft agent named Review Library Reception. It should speak English, use voice eve, and answer only questions about our library hours: Monday to Friday, 9 am to 5 pm. Greet callers with “Welcome to the library. How can I help?” It needs no external tools or phone number. Leave it as a draft.",
+              "tools_triggered": "list_agents, get_or_create_agent, get_agent",
+              "expected_behavior": "Resolve potential duplicates, then deliberately select agentType=static, promptType=static, greetingType=static, language=en-US, voiceName=eve, and the supplied name and greeting. Set no external server, tools, or phone assignment. Verify returned/saved status=draft and the supplied hours. Do not activate or create a realtime session. If the voice is rejected, explain the issue without claiming success."
+            },
+            {
+              "description": "Targeted update. Setup: sample Review Library Reception agent exists as a draft with a static greeting and weekday hours. Capture current settings before the change.",
+              "prompt": "Update Review Library Reception so it also tells callers that Saturday opening hours are 10 am to 2 pm. Keep its existing weekday hours and all other settings.",
+              "tools_triggered": "list_agents, get_agent, patch_agent, get_agent",
+              "expected_behavior": "Read the resolved agent, preserve the current instructions and unrelated fields, and add Saturday hours. Use the read updatedAt as expectedUpdatedAt in patch_agent. Read back the saved instructions and draft status. On a conflict reread and reconcile, never overwrite blindly."
+            },
+            {
+              "description": "Knowledge addition. Setup: sample Review Library Reception agent exists, with no document named Library borrowing policy. Use the text supplied in the prompt; no external file is needed.",
+              "prompt": "Add a knowledge document called Library borrowing policy to Review Library Reception with this text: Members may borrow up to five books for fourteen days. One renewal is allowed if no other member has reserved the book.",
+              "tools_triggered": "list_agents, list_knowledge_documents, upload_knowledge_document, list_knowledge_documents",
+              "expected_behavior": "Resolve the agent, inspect existing knowledge, upload the supplied text with the supplied document name, and verify it appears in the document list. Preserve existing documents. If a same-name document exists, clarify or reconcile without silently deleting it. Do not claim a live retrieval test has occurred."
+            },
+            {
+              "description": "Call diagnostics. Setup: dedicated sample agent Review Library Reception with at least one retained synthetic call and related logs. Test-data provisioning is pending. No real customer transcripts.",
+              "prompt": "Review the five most recent calls for Review Library Reception. Summarize their outcomes and investigate any errors shown in the agent logs.",
+              "tools_triggered": "list_agents, list_calls, get_call, list_agent_logs",
+              "expected_behavior": "Resolve the agent; call list_calls with its agentId and limit=5. Inspect returned calls with get_call where detail is needed and request relevant agent logs. Base outcomes on returned status and errors, tie findings to the correct agent/call, and distinguish hypotheses from evidence. If there are no calls or logs, report that honestly. Do not change configuration or initiate calls."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Unsupported number purchase. Explain that Orbitali MCP can inspect and assign existing organization numbers but cannot buy or provision new numbers. Do not invoke any Orbitali mutation, assign an existing number as a substitute, or claim a purchase.",
+              "prompt": "Buy me a new Spanish phone number using Orbitali and charge my account."
+            },
+            {
+              "description": "Unsupported voice cloning. Explain that the exposed Orbitali tools configure existing voice selections and do not clone or train a voice from audio. Do not invoke an Orbitali tool to simulate cloning or claim a cloned voice exists.",
+              "prompt": "Clone my own voice from this audio recording and add it as a new Orbitali voice model."
+            },
+            {
+              "description": "Unsupported outbound dialing. Explain that the exposed tools do not initiate an outbound phone call. Do not call create_realtime_session as a substitute or invoke a mutation; do not claim the phone rang.",
+              "prompt": "Use Orbitali to dial my mobile phone right now and have the agent speak to me."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "The plugin connects to an existing Orbitali account using OAuth account linking and does not sell products, initiate purchases, or process payments. Users sign up on the Orbitali platform and pay for the Orbitali service there, optionally using a free trial. Payments take place independently on the platform, outside the plugin; the plugin does not initiate subscriptions, upgrades, credit purchases, or checkout."
+      },
+      "publication": {
+        "release_notes": "OAuth account linking with organization consent, least-privilege access and revocation. Compatible desktop MCP configuration. Legacy API-key and local stdio support remain available.",
+        "countries": [
+          "AD",
+          "AL",
+          "AM",
+          "AT",
+          "AZ",
+          "BA",
+          "BE",
+          "BG",
+          "CH",
+          "CY",
+          "CZ",
+          "DE",
+          "DK",
+          "EE",
+          "ES",
+          "FI",
+          "FR",
+          "GB",
+          "GE",
+          "GR",
+          "HR",
+          "HU",
+          "IE",
+          "IS",
+          "IT",
+          "KZ",
+          "LI",
+          "LT",
+          "LU",
+          "LV",
+          "MC",
+          "MD",
+          "ME",
+          "MK",
+          "MT",
+          "NL",
+          "NO",
+          "PL",
+          "PT",
+          "RO",
+          "RS",
+          "SE",
+          "SI",
+          "SK",
+          "SM",
+          "TR",
+          "UA",
+          "VA"
+        ]
+      }
+    }
+  }
+}

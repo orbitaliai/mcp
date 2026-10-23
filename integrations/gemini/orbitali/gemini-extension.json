@@ -1,0 +1,24 @@
+{
+  "name": "orbitali",
+  "version": "0.2.0",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "orbitali": {
+      "httpUrl": "https://mcp.orbitali.ai/mcp",
+      "oauth": {
+        "enabled": true,
+        "scopes": [
+          "agents:read",
+          "agents:write",
+          "knowledge:read",
+          "knowledge:write",
+          "telephony:read",
+          "telephony:write",
+          "calls:read",
+          "calls:write",
+          "integrations:read"
+        ]
+      }
+    }
+  }
+}
