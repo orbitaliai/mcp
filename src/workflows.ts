@@ -176,6 +176,10 @@ export function updateAgentTool(client: OrbitaliClient, input: UpdateAgentToolIn
   return client.updateAgentTool(agentId, toolId, tool as AgentToolInput);
 }
 
+export function deleteAgent(client: OrbitaliClient, agentId: string): Promise<{ id: string }> {
+  return client.deleteAgent(agentId);
+}
+
 export function deleteAgentTool(client: OrbitaliClient, agentId: string, toolId: string): Promise<{ id: string }> {
   return client.deleteAgentTool(agentId, toolId);
 }

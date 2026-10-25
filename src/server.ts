@@ -9,6 +9,7 @@ import {
   assignPhoneNumberInputSchema,
   configureAgentMcpToolsInputSchema,
   createRealtimeSessionInputSchema,
+  deleteAgentInputSchema,
   deleteAgentToolInputSchema,
   deleteKnowledgeDocumentInputSchema,
   ensureAgentToolsInputSchema,
@@ -30,6 +31,7 @@ import {
   assignPhoneNumber,
   configureAgentMcpTools,
   createRealtimeSession,
+  deleteAgent,
   deleteAgentTool,
   deleteKnowledgeDocument,
   ensureAgentTools,
@@ -179,6 +181,17 @@ export function createServer(client: OrbitaliClient): McpServer {
       inputSchema: updateAgentToolInputSchema
     },
     (input) => runTool(() => updateAgentTool(client, input))
+  );
+
+  server.registerTool(
+    "delete_agent",
+    {
+      title: "Delete agent",
+      description: "Permanently delete an agent and its configuration, knowledge, logs, and web-chat conversations. Phone numbers are unassigned; historical voice calls and transcripts are retained subject to retention settings. Use patch_agent with inactive status to disable an agent without deleting it.",
+      inputSchema: deleteAgentInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true }
+    },
+    ({ agentId }) => runTool(() => deleteAgent(client, agentId))
   );
 
   server.registerTool(
