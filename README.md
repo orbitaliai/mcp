@@ -194,3 +194,9 @@ Use the separate list tools for custom tools, MCP assignments, knowledge, and ph
 This tool requires the API deployment that provides `GET /public/v1/agents/:id`.
 Deploy that endpoint before using this MCP release; older APIs cannot supply the
 stored prompt through `list_agents`.
+
+### SIP handoff prerequisites
+
+`assign_phone_number` accepts an E.164 `handoffPhoneNumber` for an existing SIP number. This sets the destination; it does not configure an outbound trunk. Configure the SIP connection's `outbound` route in the Orbitali dashboard or [SIP API](https://docs.orbitali.ai/api-reference/sip#configure-direct-call-transfers): PBX host/port, UDP/TCP transport, optional independent outbound credentials and an authorized E.164 caller ID. Wait for provisioning to be applied before placing a new call. This MCP package does not currently expose SIP connection provisioning tools.
+
+With the matching platform/gateway release, `transfer_call` becomes available only when the connection has an applied outbound route and a handoff destination. Asterisk waits up to 30 seconds for an answer; unsuccessful transfers retain the agent conversation. On answer, the AI session ends and Asterisk bridges caller and human until either hangs up. Call completion/AI usage stop at handoff. Do not promise original caller-ID preservation, extension dialing, REFER, attended transfers, TLS or outbound REGISTER. Leave transfers disabled until the customer's PBX/trunk is configured and tested; never place credentials in prompts or logs.
