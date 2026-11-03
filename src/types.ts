@@ -313,6 +313,7 @@ export const llmUsageSchema = z.object({
 export type LlmUsage = z.infer<typeof llmUsageSchema>;
 
 export const callDetailSchema = callSummarySchema.extend({
+  transcriptionStatus: z.enum(["processing", "complete", "incomplete"]).nullable().optional(),
   summary: z.string().nullable(),
   messages: z.array(callMessageSchema),
   toolInvocationsLog: z.array(callToolInvocationSchema),
