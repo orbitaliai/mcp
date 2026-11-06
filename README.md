@@ -51,6 +51,7 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `patch_agent`              | Update agent fields (requires `expectedUpdatedAt` for optimistic concurrency).                  |
 | `ensure_agent_tools`       | Create tools whose name does not already exist; optionally update existing matching tools.      |
 | `update_agent_tool`        | Replace one existing custom tool definition on an agent.                                       |
+| `delete_agent`             | Permanently delete an agent and its configuration; unassign numbers and retain voice call history. |
 | `delete_agent_tool`        | Delete one custom tool from an agent.                                                          |
 | `list_knowledge_documents` | List the knowledge documents configured on an agent.                                            |
 | `upload_knowledge_document`| Upload document text or a local `.txt`, `.md`, or `.pdf` file to an agent knowledge base.       |

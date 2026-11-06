@@ -17,6 +17,36 @@ afterEach(async () => {
 });
 
 describe("MCP discovery metadata", () => {
+  test("delete_agent uses authenticated DELETE and advertises destructive behavior", async () => {
+    const agentId = "10000000-0000-4000-8000-000000000001";
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    await connect(async (url, init) => {
+      requests.push({ url, init });
+      return Response.json({ id: agentId });
+    });
+    const tool = (await client!.listTools()).tools.find(({ name }) => name === "delete_agent");
+    expect(tool?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    const result = await client!.callTool({ name: "delete_agent", arguments: { agentId } });
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toEqual({ id: agentId });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.url).toBe(`https://api.example.com/public/v1/agents/${agentId}`);
+    expect(requests[0]!.init?.method).toBe("DELETE");
+    expect(requests[0]!.init?.body).toBeUndefined();
+    expect(requests[0]!.init?.headers).toMatchObject({ Authorization: "Bearer sk_test" });
+    await client!.callTool({ name: "delete_agent", arguments: { agentId: "not-a-uuid" } });
+    expect(requests).toHaveLength(1);
+  });
+
+  test("delete_agent reports a missing or foreign agent without retrying", async () => {
+    await connect(async () => Response.json({ error: "Agent not found" }, { status: 404 }));
+    const result = await client!.callTool({ name: "delete_agent", arguments: {
+      agentId: "10000000-0000-4000-8000-000000000001"
+    } });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({ error: "Agent not found", status: 404 });
+  });
+
   test("get_agent reads configuration over authenticated GET and is read-only", async () => {
     const agentId = "10000000-0000-4000-8000-000000000001";
     const detail = {
