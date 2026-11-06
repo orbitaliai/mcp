@@ -58,7 +58,6 @@ export const agentPromptFieldsBaseSchema = z.object({
   instructions: z.string().trim().max(24000),
   greetingType: greetingTypeSchema,
   staticGreeting: z.string().trim().max(1000).nullable(),
-  outboundGreeting: z.string().trim().max(1000).nullable()
 });
 
 export const agentPromptFieldsSchema = agentPromptFieldsBaseSchema.superRefine((value, context) => {
@@ -93,7 +92,6 @@ export const publicAgentDetailsSchema = z.object({
     instructions: z.string(),
     greetingType: greetingTypeSchema,
     staticGreeting: z.string().nullable(),
-    outboundGreeting: z.string().nullable()
   }).nullable()
 });
 export type PublicAgentDetails = z.infer<typeof publicAgentDetailsSchema>;

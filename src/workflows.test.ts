@@ -106,7 +106,6 @@ function createAgentInput(overrides: Partial<GetOrCreateAgentInput> = {}): GetOr
     instructions: "Help the caller.",
     greetingType: "none",
     staticGreeting: null,
-    outboundGreeting: null,
     reuseExisting: true,
     ...overrides
   } as GetOrCreateAgentInput;
