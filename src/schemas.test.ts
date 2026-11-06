@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { getOrCreateAgentInputSchema, uploadKnowledgeDocumentInputSchema } from "./schemas";
-import { agentMcpToolSelectionSchema, agentToolInputSchema, mcpIntegrationSchema } from "./types";
+import { agentMcpToolSelectionSchema, agentToolInputSchema, callSummarySchema, mcpIntegrationSchema } from "./types";
 
 const agentId = "11111111-1111-4111-8111-111111111111";
 
@@ -99,6 +99,67 @@ describe("connected MCP schemas", () => {
       description: "Find slots",
       providerMetadata: { version: 1 }
     });
+  });
+});
+
+describe("call usage schema", () => {
+  const base = {
+    id: "33333333-3333-4333-8333-333333333333",
+    agentName: "Receptionist",
+    fromNumber: "+15550001000",
+    toNumber: "+15550002000",
+    status: "completed",
+    durationSeconds: 30,
+    startedAt: "2026-08-17T10:02:00.000Z",
+    toolInvocations: 0
+  };
+
+  test("rejects inconsistent allocations even when legacy cost is present", () => {
+    expect(callSummarySchema.safeParse({
+      ...base, usageCostEur: 0.05,
+      billableMinutes: 1, includedMinutes: 1, overageMinutes: 1, usageClassification: "split"
+    }).success).toBe(false);
+  });
+
+  test("accepts independently rounded allocations and floating-point sums", () => {
+    for (const [billableMinutes, includedMinutes, overageMinutes] of [[0.33, 0.17, 0.17], [0.67, 0.33, 0.33], [0.3, 0.1, 0.2]]) {
+      expect(callSummarySchema.safeParse({
+        ...base, billableMinutes, includedMinutes, overageMinutes, usageClassification: "split"
+      }).success).toBe(true);
+    }
+  });
+
+  test("requires either legacy cost or complete allocation", () => {
+    expect(callSummarySchema.parse({ ...base, usageCostEur: 0 }).usageCostEur).toBe(0);
+    for (const usage of [{}, { billableMinutes: 1 }, { usageCostEur: 0.05, billableMinutes: 1 }]) {
+      expect(callSummarySchema.safeParse({ ...base, ...usage }).success).toBe(false);
+    }
+  });
+
+  test("retains nonnegative validation for every usage number", () => {
+    const usage = { billableMinutes: 0, includedMinutes: 0, overageMinutes: 0, usageClassification: "included" };
+    for (const field of ["billableMinutes", "includedMinutes", "overageMinutes", "usageCostEur"]) {
+      expect(callSummarySchema.safeParse({ ...base, ...usage, [field]: -1 }).success).toBe(false);
+    }
+  });
+
+  test("accepts allowance and overage allocation without a per-call cost", () => {
+    expect(
+      callSummarySchema.parse({
+        id: "33333333-3333-4333-8333-333333333333",
+        agentName: "Receptionist",
+        fromNumber: "+15550001000",
+        toNumber: "+15550002000",
+        status: "completed",
+        durationSeconds: 30,
+        startedAt: "2026-08-17T10:02:00.000Z",
+        toolInvocations: 0,
+        billableMinutes: 0.5,
+        includedMinutes: 0.17,
+        overageMinutes: 0.33,
+        usageClassification: "split"
+      })
+    ).toMatchObject({ usageClassification: "split", overageMinutes: 0.33 });
   });
 });
 
