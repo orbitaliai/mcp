@@ -1,3 +1,4 @@
+import { callDetailSchema, callSummarySchema } from "./types";
 import type { OrbitaliMcpConfig } from "./config";
 import type {
   Agent,
@@ -211,12 +212,14 @@ export class OrbitaliClient {
     );
   }
 
-  listCalls(params: ListCallsParams = {}): Promise<CallSummary[]> {
-    return this.request<CallSummary[]>("GET", `/public/v1/calls${toQueryString(params)}`);
+  async listCalls(params: ListCallsParams = {}): Promise<CallSummary[]> {
+    const response = await this.request<unknown>("GET", `/public/v1/calls${toQueryString(params)}`);
+    return callSummarySchema.array().parse(response);
   }
 
-  getCall(callId: string): Promise<CallDetail> {
-    return this.request<CallDetail>("GET", `/public/v1/calls/${encodeURIComponent(callId)}`);
+  async getCall(callId: string): Promise<CallDetail> {
+    const response = await this.request<unknown>("GET", `/public/v1/calls/${encodeURIComponent(callId)}`);
+    return callDetailSchema.parse(response);
   }
 
   listAgentLogs(agentId: string, params: ListAgentLogsParams = {}): Promise<AgentLogsResponse> {

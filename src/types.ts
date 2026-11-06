@@ -253,10 +253,37 @@ export const callSummarySchema = z.object({
   durationSeconds: z.number().int().nonnegative(),
   startedAt: z.iso.datetime(),
   toolInvocations: z.number().int().nonnegative(),
-  billableMinutes: z.number().nonnegative(),
-  includedMinutes: z.number().nonnegative(),
-  overageMinutes: z.number().nonnegative(),
-  usageClassification: z.enum(["included", "overage", "split", "trial", "unallocated"])
+  // Older API deployments return only usageCostEur. Never infer allocation from cost.
+  usageCostEur: z.number().nonnegative().optional(),
+  billableMinutes: z.number().nonnegative().optional(),
+  includedMinutes: z.number().nonnegative().optional(),
+  overageMinutes: z.number().nonnegative().optional(),
+  usageClassification: z.enum(["included", "overage", "split", "trial", "unallocated"]).optional()
+}).superRefine((value, context) => {
+  const { billableMinutes, includedMinutes, overageMinutes, usageClassification } = value;
+  const allocation = [billableMinutes, includedMinutes, overageMinutes, usageClassification];
+  if (allocation.every((field) => field === undefined) && value.usageCostEur !== undefined) {
+    return;
+  }
+  if (billableMinutes === undefined || includedMinutes === undefined || overageMinutes === undefined || usageClassification === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["billableMinutes"],
+      message: "Provide a complete minute allocation or a legacy usageCostEur"
+    });
+    return;
+  }
+  // The producer rounds each interval count to two decimals independently.
+  // Allow one hundredth of a minute plus floating-point noise in the sum.
+  const total = includedMinutes + overageMinutes;
+  const tolerance = 0.01 + Number.EPSILON * Math.max(1, billableMinutes, total) * 4;
+  if (Math.abs(billableMinutes - total) > tolerance) {
+    context.addIssue({
+      code: "custom",
+      path: ["billableMinutes"],
+      message: "Billable minutes must equal included plus overage minutes within rounding precision"
+    });
+  }
 });
 export type CallSummary = z.infer<typeof callSummarySchema>;
 
@@ -295,7 +322,7 @@ export const llmUsageSchema = z.object({
 });
 export type LlmUsage = z.infer<typeof llmUsageSchema>;
 
-export const callDetailSchema = callSummarySchema.extend({
+export const callDetailSchema = callSummarySchema.safeExtend({
   summary: z.string().nullable(),
   messages: z.array(callMessageSchema),
   toolInvocationsLog: z.array(callToolInvocationSchema),
