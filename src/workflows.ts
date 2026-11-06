@@ -15,6 +15,7 @@ import {
   createAgentRequestSchema,
   createKnowledgeDocumentRequestSchema,
   type Agent,
+  type PublicAgentDetails,
   type AgentAssignedPhoneNumber,
   type AgentLogsResponse,
   type AgentMcpTool,
@@ -59,6 +60,10 @@ export interface ToolFailure {
 
 export function listAgents(client: OrbitaliClient): Promise<Agent[]> {
   return client.listAgents();
+}
+
+export function getAgent(client: OrbitaliClient, agentId: string): Promise<PublicAgentDetails> {
+  return client.getAgent(agentId);
 }
 
 export function listAgentTools(client: OrbitaliClient, agentId: string): Promise<AgentTool[]> {
@@ -169,6 +174,10 @@ export async function ensureAgentTools(client: OrbitaliClient, input: EnsureAgen
 export function updateAgentTool(client: OrbitaliClient, input: UpdateAgentToolInput): Promise<{ id: string }> {
   const { agentId, toolId, id: _id, ...tool } = input as UpdateAgentToolInput & { id?: string };
   return client.updateAgentTool(agentId, toolId, tool as AgentToolInput);
+}
+
+export function deleteAgent(client: OrbitaliClient, agentId: string): Promise<{ id: string }> {
+  return client.deleteAgent(agentId);
 }
 
 export function deleteAgentTool(client: OrbitaliClient, agentId: string, toolId: string): Promise<{ id: string }> {

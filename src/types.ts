@@ -58,7 +58,6 @@ export const agentPromptFieldsBaseSchema = z.object({
   instructions: z.string().trim().max(24000),
   greetingType: greetingTypeSchema,
   staticGreeting: z.string().trim().max(1000).nullable(),
-  outboundGreeting: z.string().trim().max(1000).nullable()
 });
 
 export const agentPromptFieldsSchema = agentPromptFieldsBaseSchema.superRefine((value, context) => {
@@ -79,6 +78,23 @@ export const agentPromptFieldsSchema = agentPromptFieldsBaseSchema.superRefine((
   }
 });
 export type AgentPromptFields = z.infer<typeof agentPromptFieldsSchema>;
+
+export const publicAgentDetailsSchema = z.object({
+  agent: agentSchema.omit({ serverHeaders: true, serverSecret: true }).extend({
+    aiIdentityDisclosureTemplateId: z.string(),
+    ambientSound: z.string(),
+    ambientSoundVolume: z.number(),
+    ambientSoundDucking: z.boolean()
+  }),
+  promptConfig: z.object({
+    promptType: promptTypeSchema,
+    identity: z.string(),
+    instructions: z.string(),
+    greetingType: greetingTypeSchema,
+    staticGreeting: z.string().nullable(),
+  }).nullable()
+});
+export type PublicAgentDetails = z.infer<typeof publicAgentDetailsSchema>;
 
 export const toolOnErrorSchema = z.enum(["return_error", "return_empty"]);
 export type ToolOnError = z.infer<typeof toolOnErrorSchema>;
@@ -215,6 +231,8 @@ export const updateAgentServerFieldsSchema = agentServerFieldsSchema.extend({
 });
 
 export const patchAgentRequestSchema = updateAgentServerFieldsSchema.merge(agentPromptFieldsBaseSchema).partial().extend({
+  // Optional defaulted arrays otherwise become [] during MCP validation.
+  phoneNumberAssignments: agentServerFieldsSchema.shape.phoneNumberAssignments.removeDefault().optional(),
   expectedUpdatedAt: z.iso.datetime()
 });
 export type PatchAgentRequest = z.infer<typeof patchAgentRequestSchema>;
@@ -323,6 +341,7 @@ export const llmUsageSchema = z.object({
 export type LlmUsage = z.infer<typeof llmUsageSchema>;
 
 export const callDetailSchema = callSummarySchema.safeExtend({
+  transcriptionStatus: z.enum(["processing", "complete", "incomplete"]).nullable().optional(),
   summary: z.string().nullable(),
   messages: z.array(callMessageSchema),
   toolInvocationsLog: z.array(callToolInvocationSchema),

@@ -29,6 +29,8 @@ const knowledgeFilePathSchema = z
   })
   .describe("Local path to a .txt, .md, or .pdf file to upload as multipart/form-data.");
 
+export const getAgentInputSchema = z.object({ agentId: agentIdSchema });
+
 export const listAgentToolsInputSchema = z.object({
   agentId: agentIdSchema
 });
@@ -83,6 +85,8 @@ export const updateAgentToolInputSchema = agentToolInputSchema.extend({
   agentId: agentIdSchema,
   toolId: z.uuid().describe("The Orbitali tool id (UUID).")
 });
+
+export const deleteAgentInputSchema = z.object({ agentId: agentIdSchema });
 
 export const deleteAgentToolInputSchema = z.object({
   agentId: agentIdSchema,

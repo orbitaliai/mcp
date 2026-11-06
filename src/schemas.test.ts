@@ -19,7 +19,6 @@ describe("getOrCreateAgentInputSchema", () => {
       instructions: "Help callers.",
       greetingType: "static",
       staticGreeting: "How can I help?",
-      outboundGreeting: null
     });
 
     expect(result.success).toBe(false);
@@ -179,7 +178,6 @@ function validAgentInput(agentType: unknown): Record<string, unknown> {
     instructions: "Help callers.",
     greetingType: "static",
     staticGreeting: "How can I help?",
-    outboundGreeting: null
   };
 }
 
