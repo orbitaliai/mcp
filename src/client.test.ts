@@ -4,6 +4,18 @@ import type { AgentMcpToolSelection } from "./types";
 
 const config = { apiKey: "sk_test", baseUrl: "https://api.example.com" };
 
+const callSummary = {
+  id: "33333333-3333-4333-8333-333333333333",
+  agentName: "Receptionist",
+  fromNumber: "+15550001000",
+  toNumber: "+15550002000",
+  status: "completed" as const,
+  durationSeconds: 30,
+  startedAt: "2026-08-17T10:02:00.000Z",
+  toolInvocations: 0
+};
+const detailFields = { summary: null, messages: [], toolInvocationsLog: [], llmUsage: [] };
+
 interface CapturedRequest {
   url: string;
   init?: RequestInit;
@@ -253,12 +265,12 @@ describe("OrbitaliClient", () => {
   });
 
   test("gets call detail with GET", async () => {
-    const { fetchImpl, calls } = mockFetch({ id: "call-1", messages: [] }, 200);
+    const { fetchImpl, calls } = mockFetch({ ...callSummary, usageCostEur: 0.05, ...detailFields }, 200);
     const client = new OrbitaliClient(config, fetchImpl);
 
     const result = await client.getCall("call-1");
 
-    expect(result).toMatchObject({ id: "call-1" });
+    expect(result).toMatchObject({ id: callSummary.id, usageCostEur: 0.05 });
     expect(calls[0]?.url).toBe("https://api.example.com/public/v1/calls/call-1");
   });
 
@@ -313,4 +325,30 @@ test("outbound reconciliation responses preserve null provider IDs and terminal 
     const client = new OrbitaliClient(config, fetchImpl);
     expect(await client.createOutboundCall({ agentId: crypto.randomUUID(), toNumber: "+15555550100", greeting: "Hello" })).toEqual(result);
   }
+});
+
+describe("call response validation", () => {
+  for (const usage of [
+    { usageCostEur: 0.05 },
+    { billableMinutes: 0.5, includedMinutes: 0.17, overageMinutes: 0.33, usageClassification: "split" as const }
+  ]) {
+    test(`preserves ${"usageCostEur" in usage ? "legacy" : "allocated"} usage in list and detail responses`, async () => {
+      const summary = { ...callSummary, ...usage };
+      const listClient = new OrbitaliClient(config, mockFetch([summary], 200).fetchImpl);
+      expect(await listClient.listCalls()).toEqual([summary]);
+      const detail = { ...summary, ...detailFields };
+      const detailClient = new OrbitaliClient(config, mockFetch(detail, 200).fetchImpl);
+      expect(await detailClient.getCall(callSummary.id)).toEqual(detail);
+    });
+  }
+
+  test("rejects inconsistent allocations in list and detail responses", async () => {
+    const summary = {
+      ...callSummary, billableMinutes: 1, includedMinutes: 1, overageMinutes: 1, usageClassification: "split"
+    };
+    const listClient = new OrbitaliClient(config, mockFetch([summary], 200).fetchImpl);
+    await expect(listClient.listCalls()).rejects.toThrow("Billable minutes");
+    const detailClient = new OrbitaliClient(config, mockFetch({ ...summary, ...detailFields }, 200).fetchImpl);
+    await expect(detailClient.getCall(callSummary.id)).rejects.toThrow("Billable minutes");
+  });
 });

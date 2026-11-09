@@ -1,4 +1,5 @@
 export const toolScopes: Record<string, readonly string[]> = {
+  delete_agent: ["agents:write"],
   list_agents: ["agents:read"], get_agent: ["agents:read"], list_agent_tools: ["agents:read"],
   list_mcp_integrations: ["integrations:read"], list_agent_mcp_tools: ["agents:read"],
   configure_agent_mcp_tools: ["agents:read", "agents:write", "integrations:read"],
