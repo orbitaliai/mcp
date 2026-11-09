@@ -60,6 +60,7 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `list_phone_numbers`       | List the organization's phone numbers with claim status and current agent assignment.           |
 | `assign_phone_number`      | Assign a claimed phone number to an agent (moves it if assigned to another agent).              |
 | `unassign_phone_number`    | Remove a phone number assignment from an agent; the number stays claimed.                       |
+| `create_outbound_call` | Place a Telnyx call with `agentId`, `toNumber`, required `greeting`, and `fromNumberId` (required for multiple usable numbers). Requires `calls:write`. |
 | `list_calls`               | List recent call history, optionally filtered by agent.                                         |
 | `get_call`                 | Get one call with summary, transcript messages, tool invocations, and LLM usage.                |
 | `list_agent_logs`          | List agent runtime logs from the last 24 hours (severity, session, pagination filters).         |
@@ -115,6 +116,25 @@ Authorization: Bearer orb_sk_REPLACE_LOCALLY
 
 The hosted MCP process does not store or ship an Orbitali API key. Each request is authorized with
 the key supplied by the MCP client.
+
+## Kubernetes secret setup
+
+Copy `infra/k8s/mcp/secrets.example.yaml` to `infra/k8s/mcp/secrets.yaml`
+(ignored by Git). Set `stringData.MCP_EXCHANGE_SECRET` to the same private
+value configured on the API, then apply the secret before the deployment:
+
+```bash
+rtk kubectl apply -f infra/k8s/mcp/secrets.yaml
+rtk kubectl apply -k infra/k8s/mcp
+```
+
+The secret is applied separately so the tracked Kustomize configuration works
+without the local secrets file. After changing an existing secret, restart the
+deployment to load the updated environment variable:
+
+```bash
+rtk kubectl rollout restart deployment/orbitali-mcp -n orbitali
+```
 
 ## Coding-agent configuration
 
@@ -203,3 +223,5 @@ stored prompt through `list_agents`.
 With the matching platform/gateway release, `transfer_call` becomes available only when the connection has an applied outbound route and a handoff destination. Asterisk waits up to 30 seconds for an answer; unsuccessful transfers retain the agent conversation. On answer, the AI session ends and Asterisk bridges caller and human until either hangs up. Call completion/AI usage stop at handoff. Do not promise original caller-ID preservation, extension dialing, REFER, attended transfers, TLS or outbound REGISTER. Leave transfers disabled until the customer's PBX/trunk is configured and tested; never place credentials in prompts or logs.
 
 Call details may include `transcriptionStatus` (`processing`, `complete`, or `incomplete`). When processing, fetch the call again after finalization before treating its transcript as complete. A null or absent status means the legacy transcription path did not track completion.
+
+Outbound creation returns the latest stored status (`active`, `completed`, or `failed`). If the outcome is uncertain, the API may return `202` with a null `providerCallId`; `status: "unknown"` means persistence could not be read. Keep the returned call ID for reconciliation and do not automatically redial.

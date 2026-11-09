@@ -6,6 +6,7 @@ export const toolScopes: Record<string, readonly string[]> = {
   get_or_create_agent: ["agents:read", "agents:write"], patch_agent: ["agents:read", "agents:write"],
   ensure_agent_tools: ["agents:read", "agents:write"], update_agent_tool: ["agents:write"], delete_agent_tool: ["agents:write"],
   list_knowledge_documents: ["knowledge:read"], upload_knowledge_document: ["knowledge:write"], delete_knowledge_document: ["knowledge:write"],
+  create_outbound_call: ["calls:write"],
   create_realtime_session: ["calls:write"], list_phone_numbers: ["telephony:read"],
   assign_phone_number: ["telephony:read", "telephony:write"], unassign_phone_number: ["telephony:read", "telephony:write"],
   list_calls: ["calls:read"], get_call: ["calls:read"], list_agent_logs: ["calls:read"]

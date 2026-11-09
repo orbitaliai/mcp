@@ -375,3 +375,20 @@ export const agentLogsResponseSchema = z.object({
   })
 });
 export type AgentLogsResponse = z.infer<typeof agentLogsResponseSchema>;
+
+export const createOutboundCallRequestSchema = z.object({
+  agentId: z.uuid(),
+  toNumber: z.string().regex(/^\+[1-9]\d{1,14}$/),
+  fromNumberId: z.uuid().nullable().optional(),
+  greeting: z.string().trim().min(1).max(1000)
+});
+
+export type CreateOutboundCallRequest = z.infer<typeof createOutboundCallRequestSchema>;
+
+export const createOutboundCallResponseSchema = z.object({
+  callId: z.uuid(),
+  providerCallId: z.string().nullable(),
+  status: z.enum(["active", "completed", "failed", "unknown"])
+});
+
+export type CreateOutboundCallResponse = z.infer<typeof createOutboundCallResponseSchema>;
