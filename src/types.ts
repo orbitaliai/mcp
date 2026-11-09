@@ -357,8 +357,8 @@ export type CreateOutboundCallRequest = z.infer<typeof createOutboundCallRequest
 
 export const createOutboundCallResponseSchema = z.object({
   callId: z.uuid(),
-  providerCallId: z.string(),
-  status: z.string()
+  providerCallId: z.string().nullable(),
+  status: z.enum(["active", "completed", "failed", "unknown"])
 });
 
 export type CreateOutboundCallResponse = z.infer<typeof createOutboundCallResponseSchema>;

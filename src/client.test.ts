@@ -294,7 +294,7 @@ describe("OrbitaliClient", () => {
 });
 
 test("outbound call sends the explicit per-call parameters", async () => {
-  const result = { callId: crypto.randomUUID(), providerCallId: "provider-id", status: "active" };
+  const result = { callId: crypto.randomUUID(), providerCallId: "provider-id", status: "active" as const };
   const { fetchImpl, calls } = mockFetch(result, 201);
   const client = new OrbitaliClient(config, fetchImpl);
   const input = { agentId: crypto.randomUUID(), fromNumberId: crypto.randomUUID(), toNumber: "+15555550100", greeting: "Hello from Acme" };
@@ -303,4 +303,14 @@ test("outbound call sends the explicit per-call parameters", async () => {
   expect(calls[0]?.url).toBe("https://api.example.com/public/v1/calls");
   expect(calls[0]?.init?.method).toBe("POST");
   expect(JSON.parse(calls[0]?.init?.body as string)).toEqual(input);
+});
+
+
+test("outbound reconciliation responses preserve null provider IDs and terminal or unknown status", async () => {
+  for (const status of ["unknown", "completed", "failed"] as const) {
+    const result = { callId: crypto.randomUUID(), providerCallId: null, status };
+    const { fetchImpl } = mockFetch(result, 202);
+    const client = new OrbitaliClient(config, fetchImpl);
+    expect(await client.createOutboundCall({ agentId: crypto.randomUUID(), toNumber: "+15555550100", greeting: "Hello" })).toEqual(result);
+  }
 });
