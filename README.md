@@ -60,6 +60,7 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `list_phone_numbers`       | List the organization's phone numbers with claim status and current agent assignment.           |
 | `assign_phone_number`      | Assign a claimed phone number to an agent (moves it if assigned to another agent).              |
 | `unassign_phone_number`    | Remove a phone number assignment from an agent; the number stays claimed.                       |
+| `create_outbound_call` | Place a Telnyx call with `agentId`, `toNumber`, required `greeting`, and `fromNumberId` (required for multiple usable numbers). Requires `calls:write`. |
 | `list_calls`               | List recent call history, optionally filtered by agent.                                         |
 | `get_call`                 | Get one call with summary, transcript messages, tool invocations, and LLM usage.                |
 | `list_agent_logs`          | List agent runtime logs from the last 24 hours (severity, session, pagination filters).         |

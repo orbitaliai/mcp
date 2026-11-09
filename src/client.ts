@@ -1,5 +1,7 @@
 import type { OrbitaliMcpConfig } from "./config";
 import type {
+  CreateOutboundCallRequest,
+  CreateOutboundCallResponse,
   Agent,
   PublicAgentDetails,
   AgentAssignedPhoneNumber,
@@ -220,6 +222,10 @@ export class OrbitaliClient {
       "DELETE",
       `/public/v1/agents/${encodeURIComponent(agentId)}/phone-numbers/${encodeURIComponent(phoneNumberId)}`
     );
+  }
+
+  createOutboundCall(body: CreateOutboundCallRequest): Promise<CreateOutboundCallResponse> {
+    return this.request<CreateOutboundCallResponse>("POST", "/public/v1/calls", body);
   }
 
   listCalls(params: ListCallsParams = {}): Promise<CallSummary[]> {

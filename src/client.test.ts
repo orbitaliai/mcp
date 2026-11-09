@@ -292,3 +292,15 @@ describe("OrbitaliClient", () => {
     }
   });
 });
+
+test("outbound call sends the explicit per-call parameters", async () => {
+  const result = { callId: crypto.randomUUID(), providerCallId: "provider-id", status: "active" };
+  const { fetchImpl, calls } = mockFetch(result, 201);
+  const client = new OrbitaliClient(config, fetchImpl);
+  const input = { agentId: crypto.randomUUID(), fromNumberId: crypto.randomUUID(), toNumber: "+15555550100", greeting: "Hello from Acme" };
+  expect(await client.createOutboundCall(input)).toEqual(result);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.url).toBe("https://api.example.com/public/v1/calls");
+  expect(calls[0]?.init?.method).toBe("POST");
+  expect(JSON.parse(calls[0]?.init?.body as string)).toEqual(input);
+});

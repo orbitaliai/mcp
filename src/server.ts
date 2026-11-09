@@ -1,3 +1,4 @@
+import { createOutboundCallRequestSchema } from "./types";
 import { toolMetadata } from "./authorization";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -282,6 +283,17 @@ export function createServer(client: OrbitaliClient): McpServer {
       inputSchema: unassignPhoneNumberInputSchema
     },
     ({ agentId, phoneNumberId }) => runTool(() => unassignPhoneNumber(client, agentId, phoneNumberId))
+  );
+
+  server.registerTool(
+    "create_outbound_call",
+    {
+      ...toolMetadata("create_outbound_call"),
+      title: "Create outbound call",
+      description: "Place a real outbound phone call with an active agent. Provide the destination E.164 number and a per-call greeting. Specify fromNumberId when multiple usable Telnyx numbers are assigned. Only call when explicitly requested by the user; do not automatically retry an ambiguous timeout.",
+      inputSchema: createOutboundCallRequestSchema
+    },
+    (input) => runTool(() => client.createOutboundCall(input))
   );
 
   server.registerTool(

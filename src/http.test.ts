@@ -122,3 +122,22 @@ describe("HTTP resource configuration compatibility", () => {
     expect((await handler(new Request(`${url.origin}/unconfigured-path`))).status).toBe(404);
   });
 });
+
+test("outbound calls require write scope and reach the protected API with explicit arguments", async () => {
+  const args = { agentId: crypto.randomUUID(), toNumber: "+15555550100", fromNumberId: crypto.randomUUID(), greeting: "Hello from Acme" };
+  const denied = fixture("calls:read");
+  expect((await denied.handler(request("orb_oat_synthetic", "tools/call", { name: "create_outbound_call", arguments: args }))).status).toBe(403);
+  expect(denied.calls).toHaveLength(1);
+  let body: unknown;
+  const handler = createHttpHandler(config, async (url, init) => {
+    if (url.endsWith("/oauth/mcp/exchange")) return Response.json({ access_token: "orb_mi_synthetic", scope: "calls:write" });
+    expect(url).toBe(config.baseUrl + "/mcp-resource/v1/calls");
+    expect(init?.method).toBe("POST");
+    body = JSON.parse(String(init?.body));
+    return Response.json({ callId: crypto.randomUUID(), providerCallId: "test-call", status: "active" }, { status: 201 });
+  });
+  const response = await handler(request("orb_oat_synthetic", "tools/call", { name: "create_outbound_call", arguments: args }));
+  expect(response.status).toBe(200);
+  expect((await response.json()).result.isError).not.toBe(true);
+  expect(body).toEqual(args);
+});
