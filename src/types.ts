@@ -18,7 +18,11 @@ export type ToolRuntimeMetadata = z.infer<typeof toolRuntimeMetadataSchema>;
 export const agentStatusSchema = z.enum(["active", "inactive", "draft"]);
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
 
-export const agentTypeSchema = z.enum(["static", "http", "webhook"]);
+export const agentTypeSchema = z
+  .enum(["static", "http", "webhook"])
+  .describe(
+    "Required integration architecture. Use static for a stored prompt with no custom tools, http when each custom tool calls its own HTTP endpoint, or webhook when one serverUrl handles tool events and optional dynamic prompts. The type cannot be changed after creation."
+  );
 export type AgentType = z.infer<typeof agentTypeSchema>;
 
 export const agentSchema = z.object({
@@ -54,7 +58,6 @@ export const agentPromptFieldsBaseSchema = z.object({
   instructions: z.string().trim().max(24000),
   greetingType: greetingTypeSchema,
   staticGreeting: z.string().trim().max(1000).nullable(),
-  outboundGreeting: z.string().trim().max(1000).nullable()
 });
 
 export const agentPromptFieldsSchema = agentPromptFieldsBaseSchema.superRefine((value, context) => {
@@ -76,6 +79,23 @@ export const agentPromptFieldsSchema = agentPromptFieldsBaseSchema.superRefine((
 });
 export type AgentPromptFields = z.infer<typeof agentPromptFieldsSchema>;
 
+export const publicAgentDetailsSchema = z.object({
+  agent: agentSchema.omit({ serverHeaders: true, serverSecret: true }).extend({
+    aiIdentityDisclosureTemplateId: z.string(),
+    ambientSound: z.string(),
+    ambientSoundVolume: z.number(),
+    ambientSoundDucking: z.boolean()
+  }),
+  promptConfig: z.object({
+    promptType: promptTypeSchema,
+    identity: z.string(),
+    instructions: z.string(),
+    greetingType: greetingTypeSchema,
+    staticGreeting: z.string().nullable(),
+  }).nullable()
+});
+export type PublicAgentDetails = z.infer<typeof publicAgentDetailsSchema>;
+
 export const toolOnErrorSchema = z.enum(["return_error", "return_empty"]);
 export type ToolOnError = z.infer<typeof toolOnErrorSchema>;
 
@@ -88,9 +108,21 @@ export const agentToolSchema = z.object({
   timeoutMs: z.number().int().min(1000).max(30000),
   onError: toolOnErrorSchema,
   enabled: z.boolean(),
-  toolUrl: z.string().trim().url().nullable().default(null),
-  toolMethod: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]).default("POST"),
-  toolHeaders: z.record(z.string(), z.string()).default({}),
+  toolUrl: z
+    .string()
+    .trim()
+    .url({ protocol: /^https$/ })
+    .nullable()
+    .default(null)
+    .describe("HTTPS endpoint called for an HTTP agent tool; required for HTTP agents and null for webhook tools."),
+  toolMethod: z
+    .enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+    .default("POST")
+    .describe("HTTP method used with toolUrl for an HTTP agent tool."),
+  toolHeaders: z
+    .record(z.string(), z.string())
+    .default({})
+    .describe("Headers sent to toolUrl for an HTTP agent tool. Keep credentials in server-side configuration."),
   toolStaticParams: z.record(z.string(), z.unknown()).default({}),
   toolContentType: z.enum(["application/json"]).nullable().default("application/json"),
   toolRuntimeMetadata: z.array(toolRuntimeMetadataSchema).default([])
@@ -99,6 +131,36 @@ export type AgentTool = z.infer<typeof agentToolSchema>;
 
 export const agentToolInputSchema = agentToolSchema.omit({ id: true });
 export type AgentToolInput = z.infer<typeof agentToolInputSchema>;
+
+export const mcpIntegrationToolSchema = z.looseObject({
+  name: z.string().trim().min(1)
+});
+
+export const mcpIntegrationSchema = z.object({
+  id: z.uuid(),
+  organizationId: z.uuid(),
+  name: z.string(),
+  url: z.url(),
+  status: z.enum(["pending", "active", "inactive"]),
+  authType: z.enum(["none", "headers", "oauth2"]),
+  cachedTools: z.array(mcpIntegrationToolSchema),
+  cachedToolsAt: z.iso.datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+});
+export type McpIntegration = z.infer<typeof mcpIntegrationSchema>;
+
+export const agentMcpToolSchema = z.object({
+  id: z.uuid(),
+  agentId: z.uuid(),
+  mcpServerId: z.uuid(),
+  toolName: z.string().trim().min(1),
+  enabled: z.boolean()
+});
+export type AgentMcpTool = z.infer<typeof agentMcpToolSchema>;
+
+export const agentMcpToolSelectionSchema = agentMcpToolSchema.omit({ id: true, agentId: true });
+export type AgentMcpToolSelection = z.infer<typeof agentMcpToolSelectionSchema>;
 
 export const knowledgeDocumentSchema = z.object({
   id: z.uuid(),
@@ -169,6 +231,8 @@ export const updateAgentServerFieldsSchema = agentServerFieldsSchema.extend({
 });
 
 export const patchAgentRequestSchema = updateAgentServerFieldsSchema.merge(agentPromptFieldsBaseSchema).partial().extend({
+  // Optional defaulted arrays otherwise become [] during MCP validation.
+  phoneNumberAssignments: agentServerFieldsSchema.shape.phoneNumberAssignments.removeDefault().optional(),
   expectedUpdatedAt: z.iso.datetime()
 });
 export type PatchAgentRequest = z.infer<typeof patchAgentRequestSchema>;
@@ -207,7 +271,37 @@ export const callSummarySchema = z.object({
   durationSeconds: z.number().int().nonnegative(),
   startedAt: z.iso.datetime(),
   toolInvocations: z.number().int().nonnegative(),
-  usageCostEur: z.number().nonnegative()
+  // Older API deployments return only usageCostEur. Never infer allocation from cost.
+  usageCostEur: z.number().nonnegative().optional(),
+  billableMinutes: z.number().nonnegative().optional(),
+  includedMinutes: z.number().nonnegative().optional(),
+  overageMinutes: z.number().nonnegative().optional(),
+  usageClassification: z.enum(["included", "overage", "split", "trial", "unallocated"]).optional()
+}).superRefine((value, context) => {
+  const { billableMinutes, includedMinutes, overageMinutes, usageClassification } = value;
+  const allocation = [billableMinutes, includedMinutes, overageMinutes, usageClassification];
+  if (allocation.every((field) => field === undefined) && value.usageCostEur !== undefined) {
+    return;
+  }
+  if (billableMinutes === undefined || includedMinutes === undefined || overageMinutes === undefined || usageClassification === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["billableMinutes"],
+      message: "Provide a complete minute allocation or a legacy usageCostEur"
+    });
+    return;
+  }
+  // The producer rounds each interval count to two decimals independently.
+  // Allow one hundredth of a minute plus floating-point noise in the sum.
+  const total = includedMinutes + overageMinutes;
+  const tolerance = 0.01 + Number.EPSILON * Math.max(1, billableMinutes, total) * 4;
+  if (Math.abs(billableMinutes - total) > tolerance) {
+    context.addIssue({
+      code: "custom",
+      path: ["billableMinutes"],
+      message: "Billable minutes must equal included plus overage minutes within rounding precision"
+    });
+  }
 });
 export type CallSummary = z.infer<typeof callSummarySchema>;
 
@@ -246,7 +340,8 @@ export const llmUsageSchema = z.object({
 });
 export type LlmUsage = z.infer<typeof llmUsageSchema>;
 
-export const callDetailSchema = callSummarySchema.extend({
+export const callDetailSchema = callSummarySchema.safeExtend({
+  transcriptionStatus: z.enum(["processing", "complete", "incomplete"]).nullable().optional(),
   summary: z.string().nullable(),
   messages: z.array(callMessageSchema),
   toolInvocationsLog: z.array(callToolInvocationSchema),
@@ -282,8 +377,39 @@ export const agentLogsResponseSchema = z.object({
 export type AgentLogsResponse = z.infer<typeof agentLogsResponseSchema>;
 
 export const sipConnectionInputSchema = z.object({
- displayLabel: z.string().trim().min(1).max(80), authMode: z.enum(["credentials", "ip"]),
- sourceCidrs: z.array(z.string()).max(32).default([]), enabled: z.boolean().default(true)
+  displayLabel: z.string().trim().min(1).max(80),
+  authMode: z.enum(["credentials", "ip"]),
+  sourceCidrs: z.array(z.string().trim().pipe(z.union([z.ipv4(), z.cidrv4()]))).max(32).default([]),
+  enabled: z.boolean().default(true)
+}).strict().superRefine((value, ctx) => {
+  if (value.authMode === "ip" && value.sourceCidrs.length === 0)
+    ctx.addIssue({ code: "custom", message: "IP authentication requires an allowlist", path: ["sourceCidrs"] });
+  if (value.authMode === "credentials" && value.sourceCidrs.length !== 0)
+    ctx.addIssue({ code: "custom", message: "Credential authentication cannot include an IP allowlist", path: ["sourceCidrs"] });
 });
-export type SipConnectionInput = z.infer<typeof sipConnectionInputSchema>;
-export type SipConnection = SipConnectionInput & { id: string; username: string; destination: string; revision: string; provisioningStatus: "pending" | "applied" | "failed"; verifiedAt: string | null };
+export type SipConnectionInput = z.input<typeof sipConnectionInputSchema>;
+export type SipConnection = z.output<typeof sipConnectionInputSchema> & {
+  id: string;
+  username: string;
+  destination: string;
+  revision: string;
+  provisioningStatus: "pending" | "applied" | "failed";
+  verifiedAt: string | null;
+};
+
+export const createOutboundCallRequestSchema = z.object({
+  agentId: z.uuid(),
+  toNumber: z.string().regex(/^\+[1-9]\d{1,14}$/),
+  fromNumberId: z.uuid().nullable().optional(),
+  greeting: z.string().trim().min(1).max(1000)
+});
+
+export type CreateOutboundCallRequest = z.infer<typeof createOutboundCallRequestSchema>;
+
+export const createOutboundCallResponseSchema = z.object({
+  callId: z.uuid(),
+  providerCallId: z.string().nullable(),
+  status: z.enum(["active", "completed", "failed", "unknown"])
+});
+
+export type CreateOutboundCallResponse = z.infer<typeof createOutboundCallResponseSchema>;

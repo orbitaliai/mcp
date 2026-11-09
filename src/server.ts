@@ -1,19 +1,25 @@
 import { z } from "zod";
-import { sipConnectionInputSchema } from "./types";
+import { createOutboundCallRequestSchema, sipConnectionInputSchema } from "./types";
+import { toolMetadata } from "./authorization";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import packageJson from "../package.json";
 import type { OrbitaliClient } from "./client";
 import { OrbitaliApiError } from "./client";
+import { SERVER_INSTRUCTIONS } from "./instructions";
 import {
   assignPhoneNumberInputSchema,
+  configureAgentMcpToolsInputSchema,
   createRealtimeSessionInputSchema,
+  deleteAgentInputSchema,
   deleteAgentToolInputSchema,
   deleteKnowledgeDocumentInputSchema,
   ensureAgentToolsInputSchema,
+  getAgentInputSchema,
   getCallInputSchema,
   getOrCreateAgentInputSchema,
   listAgentLogsInputSchema,
+  listAgentMcpToolsInputSchema,
   listCallsInputSchema,
   listKnowledgeDocumentsInputSchema,
   listAgentToolsInputSchema,
@@ -25,15 +31,20 @@ import {
 } from "./schemas";
 import {
   assignPhoneNumber,
+  configureAgentMcpTools,
   createRealtimeSession,
+  deleteAgent,
   deleteAgentTool,
   deleteKnowledgeDocument,
   ensureAgentTools,
+  getAgent,
   getCall,
   getOrCreateAgent,
   listAgentLogs,
+  listAgentMcpTools,
   listCalls,
   listKnowledgeDocuments,
+  listMcpIntegrations,
   listAgentTools,
   listAgents,
   listPhoneNumbers,
@@ -47,11 +58,12 @@ export const SERVER_NAME = "orbitali";
 export const SERVER_VERSION = packageJson.version;
 
 export function createServer(client: OrbitaliClient): McpServer {
-  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: SERVER_INSTRUCTIONS });
 
   server.registerTool(
     "list_agents",
     {
+      ...toolMetadata("list_agents"),
       title: "List agents",
       description: "List the voice agents in the authenticated Orbitali organization."
     },
@@ -59,8 +71,21 @@ export function createServer(client: OrbitaliClient): McpServer {
   );
 
   server.registerTool(
+    "get_agent",
+    {
+      ...toolMetadata("get_agent"),
+      title: "Get agent configuration",
+      description: "Read an existing agent's settings, instructions, prompt and greeting modes, and agent.updatedAt for safe patching. Webhook credentials are omitted. promptConfig is null if no prompt is stored; dynamic prompt text is stored configuration, not a resolved per-call prompt. Use the separate tools to list custom tools, MCP assignments, knowledge documents, and phone assignments.",
+      inputSchema: getAgentInputSchema,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+    },
+    ({ agentId }) => runTool(() => getAgent(client, agentId))
+  );
+
+  server.registerTool(
     "list_agent_tools",
     {
+      ...toolMetadata("list_agent_tools"),
       title: "List agent tools",
       description: "List the custom tools configured on a specific agent.",
       inputSchema: listAgentToolsInputSchema
@@ -69,11 +94,46 @@ export function createServer(client: OrbitaliClient): McpServer {
   );
 
   server.registerTool(
+    "list_mcp_integrations",
+    {
+      ...toolMetadata("list_mcp_integrations"),
+      title: "List MCP integrations",
+      description:
+        "List the authenticated organization's connected MCP servers and their cached tool definitions. Use this to find an integration such as Calendly and the exact server id and tool names before assigning tools to an agent. Credentials are never returned."
+    },
+    () => runTool(() => listMcpIntegrations(client))
+  );
+
+  server.registerTool(
+    "list_agent_mcp_tools",
+    {
+      ...toolMetadata("list_agent_mcp_tools"),
+      title: "List agent MCP tools",
+      description: "List the connected MCP tools currently assigned to an Orbitali agent.",
+      inputSchema: listAgentMcpToolsInputSchema
+    },
+    ({ agentId }) => runTool(() => listAgentMcpTools(client, agentId))
+  );
+
+  server.registerTool(
+    "configure_agent_mcp_tools",
+    {
+      ...toolMetadata("configure_agent_mcp_tools"),
+      title: "Configure agent MCP tools",
+      description:
+        "Replace an agent's connected MCP tool assignments. Discover exact server ids and tool names with list_mcp_integrations first; pass an empty tools array to clear all assignments.",
+      inputSchema: configureAgentMcpToolsInputSchema
+    },
+    ({ agentId, tools }) => runTool(() => configureAgentMcpTools(client, agentId, tools))
+  );
+
+  server.registerTool(
     "get_or_create_agent",
     {
+      ...toolMetadata("get_or_create_agent"),
       title: "Get or create agent",
       description:
-        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, and serverUrl. Set reuseExisting to false to always create.",
+        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, and serverUrl. Select agentType from the application architecture: static for no-code fixed behavior without custom tools, http for independent per-tool HTTP endpoints, or webhook for one event endpoint and optional dynamic prompts. To use connected MCP tools, call list_mcp_integrations first and pass the desired selections in mcpTools. Set reuseExisting to false to always create.",
       inputSchema: getOrCreateAgentInputSchema
     },
     (input) => runTool(() => getOrCreateAgent(client, input))
@@ -82,6 +142,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "patch_agent",
     {
+      ...toolMetadata("patch_agent"),
       title: "Patch agent",
       description:
         "Update fields on an existing agent. Requires expectedUpdatedAt for optimistic concurrency; a conflict is returned when the agent changed since then.",
@@ -93,9 +154,10 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "ensure_agent_tools",
     {
+      ...toolMetadata("ensure_agent_tools"),
       title: "Ensure agent tools",
       description:
-        "Create the provided tools on an agent, skipping matching names by default or replacing them when updateExisting is true.",
+        "Create the provided tools on an HTTP or webhook agent, skipping matching names by default or replacing them when updateExisting is true. HTTP tools require their own toolUrl; webhook tools use the agent's serverUrl. Static agents do not support custom tools.",
       inputSchema: ensureAgentToolsInputSchema
     },
     (input) => runTool(async () => {
@@ -115,6 +177,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "update_agent_tool",
     {
+      ...toolMetadata("update_agent_tool"),
       title: "Update agent tool",
       description: "Replace one existing custom tool definition on a specific agent.",
       inputSchema: updateAgentToolInputSchema
@@ -123,8 +186,21 @@ export function createServer(client: OrbitaliClient): McpServer {
   );
 
   server.registerTool(
+    "delete_agent",
+    {
+      ...toolMetadata("delete_agent"),
+      title: "Delete agent",
+      description: "Permanently delete an agent and its configuration, knowledge, logs, and web-chat conversations. Phone numbers are unassigned; historical voice calls and transcripts are retained subject to retention settings. Use patch_agent with inactive status to disable an agent without deleting it.",
+      inputSchema: deleteAgentInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true }
+    },
+    ({ agentId }) => runTool(() => deleteAgent(client, agentId))
+  );
+
+  server.registerTool(
     "delete_agent_tool",
     {
+      ...toolMetadata("delete_agent_tool"),
       title: "Delete agent tool",
       description: "Delete one custom tool from a specific agent.",
       inputSchema: deleteAgentToolInputSchema
@@ -135,6 +211,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "list_knowledge_documents",
     {
+      ...toolMetadata("list_knowledge_documents"),
       title: "List knowledge documents",
       description: "List the knowledge documents configured on a specific agent.",
       inputSchema: listKnowledgeDocumentsInputSchema
@@ -145,6 +222,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "upload_knowledge_document",
     {
+      ...toolMetadata("upload_knowledge_document"),
       title: "Upload knowledge document",
       description:
         "Upload document text or a local .txt, .md, or .pdf file to an agent's knowledge base for native search_knowledge retrieval.",
@@ -156,6 +234,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "delete_knowledge_document",
     {
+      ...toolMetadata("delete_knowledge_document"),
       title: "Delete knowledge document",
       description: "Delete a knowledge document from a specific agent.",
       inputSchema: deleteKnowledgeDocumentInputSchema
@@ -166,6 +245,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "create_realtime_session",
     {
+      ...toolMetadata("create_realtime_session"),
       title: "Create realtime session",
       description: "Create a short-lived realtime session (token, expiration, WebSocket URL, and audio protocol) for an active agent.",
       inputSchema: createRealtimeSessionInputSchema
@@ -176,6 +256,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "list_phone_numbers",
     {
+      ...toolMetadata("list_phone_numbers"),
       title: "List phone numbers",
       description:
         "List the organization's phone numbers with claim status and current agent assignment. Numbers without assignedAgentId are available to assign."
@@ -186,6 +267,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "assign_phone_number",
     {
+      ...toolMetadata("assign_phone_number"),
       title: "Assign phone number",
       description:
         "Assign a claimed phone number to an agent so it answers calls on that number. Moves the number if it is currently assigned to another agent. Returns the agent's resulting assignments.",
@@ -197,6 +279,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "unassign_phone_number",
     {
+      ...toolMetadata("unassign_phone_number"),
       title: "Unassign phone number",
       description: "Remove a phone number assignment from an agent. The number stays claimed by the organization.",
       inputSchema: unassignPhoneNumberInputSchema
@@ -205,8 +288,20 @@ export function createServer(client: OrbitaliClient): McpServer {
   );
 
   server.registerTool(
+    "create_outbound_call",
+    {
+      ...toolMetadata("create_outbound_call"),
+      title: "Create outbound call",
+      description: "Place a real outbound phone call with an active agent. Provide the destination E.164 number and a per-call greeting. Specify fromNumberId when multiple usable Telnyx or Twilio numbers are assigned. Only call when explicitly requested by the user; do not automatically retry an ambiguous timeout.",
+      inputSchema: createOutboundCallRequestSchema
+    },
+    (input) => runTool(() => client.createOutboundCall(input))
+  );
+
+  server.registerTool(
     "list_calls",
     {
+      ...toolMetadata("list_calls"),
       title: "List calls",
       description: "List recent call history (status, duration, numbers, tool invocation count), optionally filtered by agent.",
       inputSchema: listCallsInputSchema
@@ -217,6 +312,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "get_call",
     {
+      ...toolMetadata("get_call"),
       title: "Get call detail",
       description: "Get one call with its summary, full transcript messages, tool invocations, and LLM usage.",
       inputSchema: getCallInputSchema
@@ -227,6 +323,7 @@ export function createServer(client: OrbitaliClient): McpServer {
   server.registerTool(
     "list_agent_logs",
     {
+      ...toolMetadata("list_agent_logs"),
       title: "List agent logs",
       description:
         "List runtime logs for an agent from the last 24 hours, filterable by severity and session id, with limit/offset pagination.",
@@ -235,11 +332,50 @@ export function createServer(client: OrbitaliClient): McpServer {
     (input) => runTool(() => listAgentLogs(client, input))
   );
 
-  server.registerTool("list_sip_connections", { title: "List SIP connections", description: "List account-scoped SIP destinations and provisioning status. Passwords are never included." }, () => runTool(() => client.listSipConnections()));
-  server.registerTool("save_sip_connection", { title: "Create or update SIP connection", description: "Configure inbound SIP with credentials or non-overlapping IPv4 allowlists. Set enabled=false to disable. A new password is returned only on creation or authentication-mode changes; pass it securely to the user and never place it in prompts or logs.", inputSchema: sipConnectionInputSchema.extend({ id: z.uuid().optional() }) }, ({ id, ...input }) => runTool(() => client.saveSipConnection(input, id)));
-  server.registerTool("rotate_sip_password", { title: "Rotate SIP password", description: "Replace the SIP password. The new password is shown once; the old password stops working after provisioning applies. Pass it securely to the user.", inputSchema: z.object({ id: z.uuid() }) }, ({ id }) => runTool(() => client.rotateSipConnection(id)));
-  server.registerTool("delete_sip_connection", { title: "Delete SIP connection", description: "Delete the connection and its linked numbers.", inputSchema: z.object({ id: z.uuid() }), annotations: { destructiveHint: true } }, ({ id }) => runTool(() => client.deleteSipConnection(id)));
-  server.registerTool("add_sip_number", { title: "Add SIP number", description: "Add an E.164 number to a SIP connection. Then use assign_phone_number to select its agent. Calls route by authenticated connection and called number.", inputSchema: z.object({ connectionId: z.uuid(), phoneNumber: z.string().regex(/^\+[1-9]\d{1,14}$/) }) }, input => runTool(() => client.addSipNumber(input)));
+  server.registerTool("list_sip_connections",
+    {
+      ...toolMetadata("list_sip_connections"),
+      title: "List SIP connections",
+      description: "List account-scoped SIP destinations and provisioning status. Passwords are never included."
+    },
+    () => runTool(() => client.listSipConnections()));
+
+  server.registerTool("save_sip_connection",
+    {
+      ...toolMetadata("save_sip_connection"),
+      title: "Create or update SIP connection",
+      description: "Configure inbound SIP with credentials or non-overlapping IPv4 allowlists. Updates replace inbound settings; first list the connection and preserve its authMode, sourceCidrs and enabled values. Set enabled=false to disable. A new password is returned only on creation or authentication-mode changes; pass it securely to the user and never place it in prompts or logs.",
+      inputSchema: sipConnectionInputSchema.safeExtend({ id: z.uuid().optional() })
+    },
+    ({ id, ...input }) => runTool(() => client.saveSipConnection(input, id)));
+
+  server.registerTool("rotate_sip_password",
+    {
+      ...toolMetadata("rotate_sip_password"),
+      title: "Rotate SIP password",
+      description: "Replace the SIP password. The new password is shown once; the old password stops working after provisioning applies. Pass it securely to the user.",
+      inputSchema: z.object({ id: z.uuid() })
+    },
+    ({ id }) => runTool(() => client.rotateSipConnection(id)));
+
+  server.registerTool("delete_sip_connection",
+    {
+      ...toolMetadata("delete_sip_connection"),
+      title: "Delete SIP connection",
+      description: "Delete the connection and its linked numbers.",
+      inputSchema: z.object({ id: z.uuid() })
+    },
+    ({ id }) => runTool(() => client.deleteSipConnection(id)));
+
+  server.registerTool("add_sip_number",
+    {
+      ...toolMetadata("add_sip_number"),
+      title: "Add SIP number",
+      description: "Add an E.164 number to a SIP connection. Then use assign_phone_number to select its agent. Calls route by authenticated connection and called number.",
+      inputSchema: z.object({ connectionId: z.uuid(), phoneNumber: z.string().regex(/^\+[1-9]\d{1,14}$/) })
+    },
+    input => runTool(() => client.addSipNumber(input)));
+
   return server;
 }
 

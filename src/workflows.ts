@@ -15,14 +15,18 @@ import {
   createAgentRequestSchema,
   createKnowledgeDocumentRequestSchema,
   type Agent,
+  type PublicAgentDetails,
   type AgentAssignedPhoneNumber,
   type AgentLogsResponse,
+  type AgentMcpTool,
+  type AgentMcpToolSelection,
   type AgentTool,
   type AgentToolInput,
   type CallDetail,
   type CallSummary,
   type CreateAgentRequest,
   type KnowledgeDocument,
+  type McpIntegration,
   type PhoneNumber
 } from "./types";
 
@@ -32,6 +36,7 @@ export interface GetOrCreateAgentResult {
   agentId: string;
   created: boolean;
   matchedAgent?: Agent;
+  mcpTools?: AgentMcpTool[];
 }
 
 export interface ToolResult {
@@ -57,8 +62,28 @@ export function listAgents(client: OrbitaliClient): Promise<Agent[]> {
   return client.listAgents();
 }
 
+export function getAgent(client: OrbitaliClient, agentId: string): Promise<PublicAgentDetails> {
+  return client.getAgent(agentId);
+}
+
 export function listAgentTools(client: OrbitaliClient, agentId: string): Promise<AgentTool[]> {
   return client.listAgentTools(agentId);
+}
+
+export function listMcpIntegrations(client: OrbitaliClient): Promise<McpIntegration[]> {
+  return client.listMcpIntegrations();
+}
+
+export function listAgentMcpTools(client: OrbitaliClient, agentId: string): Promise<AgentMcpTool[]> {
+  return client.listAgentMcpTools(agentId);
+}
+
+export function configureAgentMcpTools(
+  client: OrbitaliClient,
+  agentId: string,
+  tools: AgentMcpToolSelection[]
+): Promise<AgentMcpTool[]> {
+  return client.setAgentMcpTools(agentId, tools);
 }
 
 export function listKnowledgeDocuments(client: OrbitaliClient, agentId: string): Promise<KnowledgeDocument[]> {
@@ -75,7 +100,7 @@ export function listKnowledgeDocuments(client: OrbitaliClient, agentId: string):
  * so concurrent bootstraps can still create duplicates.
  */
 export async function getOrCreateAgent(client: OrbitaliClient, input: GetOrCreateAgentInput): Promise<GetOrCreateAgentResult> {
-  const { reuseExisting, ...createBody } = input;
+  const { reuseExisting, mcpTools, ...createBody } = input;
   const request = createAgentRequestSchema.parse(createBody) as CreateAgentRequest;
 
   if (reuseExisting) {
@@ -83,12 +108,14 @@ export async function getOrCreateAgent(client: OrbitaliClient, input: GetOrCreat
     const matchedAgent = agents.find((agent) => isSameAgent(agent, request));
 
     if (matchedAgent) {
-      return { agentId: matchedAgent.id, created: false, matchedAgent };
+      const assignedMcpTools = mcpTools ? await client.setAgentMcpTools(matchedAgent.id, mcpTools) : undefined;
+      return { agentId: matchedAgent.id, created: false, matchedAgent, ...(assignedMcpTools ? { mcpTools: assignedMcpTools } : {}) };
     }
   }
 
   const { id } = await client.createAgent(request);
-  return { agentId: id, created: true };
+  const assignedMcpTools = mcpTools ? await client.setAgentMcpTools(id, mcpTools) : undefined;
+  return { agentId: id, created: true, ...(assignedMcpTools ? { mcpTools: assignedMcpTools } : {}) };
 }
 
 /**
@@ -147,6 +174,10 @@ export async function ensureAgentTools(client: OrbitaliClient, input: EnsureAgen
 export function updateAgentTool(client: OrbitaliClient, input: UpdateAgentToolInput): Promise<{ id: string }> {
   const { agentId, toolId, id: _id, ...tool } = input as UpdateAgentToolInput & { id?: string };
   return client.updateAgentTool(agentId, toolId, tool as AgentToolInput);
+}
+
+export function deleteAgent(client: OrbitaliClient, agentId: string): Promise<{ id: string }> {
+  return client.deleteAgent(agentId);
 }
 
 export function deleteAgentTool(client: OrbitaliClient, agentId: string, toolId: string): Promise<{ id: string }> {

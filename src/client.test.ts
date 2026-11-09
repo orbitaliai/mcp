@@ -1,7 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { OrbitaliApiError, OrbitaliClient, type FetchLike } from "./client";
+import type { AgentMcpToolSelection } from "./types";
 
 const config = { apiKey: "sk_test", baseUrl: "https://api.example.com" };
+
+const callSummary = {
+  id: "33333333-3333-4333-8333-333333333333",
+  agentName: "Receptionist",
+  fromNumber: "+15550001000",
+  toNumber: "+15550002000",
+  status: "completed" as const,
+  durationSeconds: 30,
+  startedAt: "2026-08-17T10:02:00.000Z",
+  toolInvocations: 0
+};
+const detailFields = { summary: null, messages: [], toolInvocationsLog: [], llmUsage: [] };
 
 interface CapturedRequest {
   url: string;
@@ -42,6 +55,43 @@ describe("OrbitaliClient", () => {
     expect(calls[0]?.init?.method).toBe("POST");
     expect(headers["Content-Type"]).toBe("application/json");
     expect(calls[0]?.init?.body).toBe(JSON.stringify({ name: "Support" }));
+  });
+
+  test("lists connected MCP integrations with GET", async () => {
+    const { fetchImpl, calls } = mockFetch([], 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    expect(await client.listMcpIntegrations()).toEqual([]);
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/mcp/servers");
+    expect(calls[0]?.init?.method).toBe("GET");
+  });
+
+  test("lists an agent's connected MCP tools with GET", async () => {
+    const { fetchImpl, calls } = mockFetch([], 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    expect(await client.listAgentMcpTools("agent-1")).toEqual([]);
+    expect(calls[0]?.url).toBe("https://api.example.com/public/v1/agents/agent-1/mcp-tools");
+    expect(calls[0]?.init?.method).toBe("GET");
+  });
+
+  test("replaces an agent's connected MCP tools with PUT", async () => {
+    const agentId = "11111111-1111-4111-8111-111111111111";
+    const tools: AgentMcpToolSelection[] = [
+      {
+        mcpServerId: "22222222-2222-4222-8222-222222222222",
+        toolName: "book_appointment",
+        enabled: true
+      }
+    ];
+    const assigned = [{ id: "33333333-3333-4333-8333-333333333333", agentId, ...tools[0]! }];
+    const { fetchImpl, calls } = mockFetch(assigned, 200);
+    const client = new OrbitaliClient(config, fetchImpl);
+
+    expect(await client.setAgentMcpTools(agentId, tools)).toEqual(assigned);
+    expect(calls[0]?.url).toBe(`https://api.example.com/public/v1/agents/${agentId}/mcp-tools`);
+    expect(calls[0]?.init?.method).toBe("PUT");
+    expect(calls[0]?.init?.body).toBe(JSON.stringify(tools));
   });
 
   test("uploads knowledge text as JSON", async () => {
@@ -215,12 +265,12 @@ describe("OrbitaliClient", () => {
   });
 
   test("gets call detail with GET", async () => {
-    const { fetchImpl, calls } = mockFetch({ id: "call-1", messages: [] }, 200);
+    const { fetchImpl, calls } = mockFetch({ ...callSummary, usageCostEur: 0.05, ...detailFields }, 200);
     const client = new OrbitaliClient(config, fetchImpl);
 
     const result = await client.getCall("call-1");
 
-    expect(result).toMatchObject({ id: "call-1" });
+    expect(result).toMatchObject({ id: callSummary.id, usageCostEur: 0.05 });
     expect(calls[0]?.url).toBe("https://api.example.com/public/v1/calls/call-1");
   });
 
@@ -266,7 +316,69 @@ test("SIP client keeps account-scoped public paths and request shapes", async ()
   await client.addSipNumber({ connectionId: "sip-id", phoneNumber: "+34910000001" });
   await client.deleteSipConnection("sip-id");
   expect(calls.map(c => c.init?.method)).toEqual(["GET", "POST", "PUT", "POST", "POST", "DELETE"]);
-  expect(calls.every(c => c.url.startsWith("https://api.example.com/public/v1/telephony/sip/"))).toBe(true);
+  expect(calls.map(c => c.url)).toEqual([
+    "connections", "connections", "connections/sip-id", "connections/sip-id/rotate", "numbers", "connections/sip-id"
+  ].map(path => "https://api.example.com/public/v1/telephony/sip/" + path));
   expect(calls[2]?.init?.body).toBe(JSON.stringify({ ...input, enabled: false }));
   expect(calls[3]?.url).toEndWith("/connections/sip-id/rotate");
+});
+
+test("outbound call sends the explicit per-call parameters", async () => {
+  const result = { callId: crypto.randomUUID(), providerCallId: "provider-id", status: "active" as const };
+  const { fetchImpl, calls } = mockFetch(result, 201);
+  const client = new OrbitaliClient(config, fetchImpl);
+  const input = { agentId: crypto.randomUUID(), fromNumberId: crypto.randomUUID(), toNumber: "+15555550100", greeting: "Hello from Acme" };
+  expect(await client.createOutboundCall(input)).toEqual(result);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.url).toBe("https://api.example.com/public/v1/calls");
+  expect(calls[0]?.init?.method).toBe("POST");
+  expect(JSON.parse(calls[0]?.init?.body as string)).toEqual(input);
+});
+
+
+test("outbound reconciliation responses preserve null provider IDs and terminal or unknown status", async () => {
+  for (const status of ["unknown", "completed", "failed"] as const) {
+    const result = { callId: crypto.randomUUID(), providerCallId: null, status };
+    const { fetchImpl } = mockFetch(result, 202);
+    const client = new OrbitaliClient(config, fetchImpl);
+    expect(await client.createOutboundCall({ agentId: crypto.randomUUID(), toNumber: "+15555550100", greeting: "Hello" })).toEqual(result);
+  }
+});
+
+describe("call response validation", () => {
+  for (const usage of [
+    { usageCostEur: 0.05 },
+    { billableMinutes: 0.5, includedMinutes: 0.17, overageMinutes: 0.33, usageClassification: "split" as const }
+  ]) {
+    test(`preserves ${"usageCostEur" in usage ? "legacy" : "allocated"} usage in list and detail responses`, async () => {
+      const summary = { ...callSummary, ...usage };
+      const listClient = new OrbitaliClient(config, mockFetch([summary], 200).fetchImpl);
+      expect(await listClient.listCalls()).toEqual([summary]);
+      const detail = { ...summary, ...detailFields };
+      const detailClient = new OrbitaliClient(config, mockFetch(detail, 200).fetchImpl);
+      expect(await detailClient.getCall(callSummary.id)).toEqual(detail);
+    });
+  }
+
+  test("rejects inconsistent allocations in list and detail responses", async () => {
+    const summary = {
+      ...callSummary, billableMinutes: 1, includedMinutes: 1, overageMinutes: 1, usageClassification: "split"
+    };
+    const listClient = new OrbitaliClient(config, mockFetch([summary], 200).fetchImpl);
+    await expect(listClient.listCalls()).rejects.toThrow("Billable minutes");
+    const detailClient = new OrbitaliClient(config, mockFetch({ ...summary, ...detailFields }, 200).fetchImpl);
+    await expect(detailClient.getCall(callSummary.id)).rejects.toThrow("Billable minutes");
+  });
+});
+
+test("SIP client accepts omitted defaulted fields and encodes connection IDs", async () => {
+  const { fetchImpl, calls } = mockFetch({}, 200);
+  const client = new OrbitaliClient(config, fetchImpl);
+  await client.saveSipConnection({ displayLabel: "SIP", authMode: "credentials" });
+  await client.saveSipConnection({ displayLabel: "SIP", authMode: "credentials" }, "a/b");
+  await client.rotateSipConnection("a/b");
+  await client.deleteSipConnection("a/b");
+  expect(calls.slice(1).map(c => c.url)).toEqual([
+    "connections/a%2Fb", "connections/a%2Fb/rotate", "connections/a%2Fb"
+  ].map(path => "https://api.example.com/public/v1/telephony/sip/" + path));
 });

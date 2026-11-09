@@ -1,0 +1,16 @@
+{
+  "name": "orbitali",
+  "owner": {
+    "name": "Orbitali Systems SL"
+  },
+  "plugins": [
+    {
+      "name": "orbitali",
+      "source": "./orbitali",
+      "description": "Create and manage AI voice agents in Orbitali, including prompts, tools, knowledge, phone assignments, and call diagnostics."
+    }
+  ],
+  "metadata": {
+    "description": "Orbitali voice-agent tools and skills"
+  }
+}

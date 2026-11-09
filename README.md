@@ -1,17 +1,32 @@
 # @orbitali/mcp
 
-A local [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that lets coding
+A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that lets coding
 agents configure Orbitali voice agents through the public REST API (`/public/v1`).
 
 It wraps the API with higher-level, workflow-safe tools so an agent can create or reuse voice
 agents, create, update, or delete tools, and mint realtime sessions without hand-writing REST calls.
 It can also upload, list, and delete agent knowledge documents, manage phone number assignments,
-and inspect call history and agent runtime logs.
+inspect call history and agent runtime logs, and assign tools from MCP integrations already connected
+in the Orbitali dashboard.
 
 The npm package runs locally over **stdio**. The production deployment also exposes a remote
 Streamable HTTP endpoint for clients that support hosted MCP servers.
 
-## Configuration
+## OAuth host packages
+
+This branch adds inbound OAuth account linking for remote clients. Deployment of the
+matching authorization service and dashboard is required; production was not changed.
+Install the prepared ChatGPT/Codex, Claude Code or Gemini CLI package using
+[integrations/INSTALL.md](integrations/INSTALL.md). Actual client results and limitations
+are in [HOST-TESTS.md](integrations/HOST-TESTS.md). Rebuild ZIPs with
+`rtk python3 scripts/package-integrations.py`.
+
+OAuth uses sign-in, organization consent, PKCE, scoped access and revocation in Settings →
+Connected applications. Configure the remote process using `.env.example`: the API and
+MCP require the same private `MCP_EXCHANGE_SECRET`, issuer and exact resource URL.
+`ORBITALI_API_KEY` is required only for stdio. Existing remote API-key clients remain supported.
+
+## Stdio configuration
 
 The server is configured with environment variables:
 
@@ -26,12 +41,17 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 
 | Tool                       | Description                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `get_agent`                | Read settings, stored instructions, prompt/greeting modes, and `agent.updatedAt`; webhook credentials are omitted. |
 | `list_agents`              | List the voice agents in the organization.                                                      |
 | `list_agent_tools`         | List the custom tools configured on an agent.                                                   |
+| `list_mcp_integrations`    | List connected MCP integrations and their available cached tools without exposing credentials. |
+| `list_agent_mcp_tools`     | List connected MCP tools assigned to an agent.                                                  |
+| `configure_agent_mcp_tools`| Replace an agent's connected MCP tool assignments.                                              |
 | `get_or_create_agent`      | Reuse an agent matching name, agentType, language, voiceName, and serverUrl, or create one.     |
 | `patch_agent`              | Update agent fields (requires `expectedUpdatedAt` for optimistic concurrency).                  |
 | `ensure_agent_tools`       | Create tools whose name does not already exist; optionally update existing matching tools.      |
 | `update_agent_tool`        | Replace one existing custom tool definition on an agent.                                       |
+| `delete_agent`             | Permanently delete an agent and its configuration; unassign numbers and retain voice call history. |
 | `delete_agent_tool`        | Delete one custom tool from an agent.                                                          |
 | `list_knowledge_documents` | List the knowledge documents configured on an agent.                                            |
 | `upload_knowledge_document`| Upload document text or a local `.txt`, `.md`, or `.pdf` file to an agent knowledge base.       |
@@ -40,22 +60,44 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | `list_phone_numbers`       | List the organization's phone numbers with claim status and current agent assignment.           |
 | `assign_phone_number`      | Assign a claimed phone number to an agent (moves it if assigned to another agent).              |
 | `unassign_phone_number`    | Remove a phone number assignment from an agent; the number stays claimed.                       |
+| `create_outbound_call` | Place a Telnyx or Twilio call with `agentId`, `toNumber`, required `greeting`, and `fromNumberId` (required for multiple usable numbers). Requires `calls:write`. |
 | `list_calls`               | List recent call history, optionally filtered by agent.                                         |
 | `get_call`                 | Get one call with summary, transcript messages, tool invocations, and LLM usage.                |
 | `list_agent_logs`          | List agent runtime logs from the last 24 hours (severity, session, pagination filters).         |
+
+To assign connected MCP tools during creation or reuse, call `list_mcp_integrations` first and use
+the exact returned server IDs and tool names in `get_or_create_agent.mcpTools`. Use
+`list_agent_mcp_tools` to inspect existing assignments and `configure_agent_mcp_tools` to replace
+them later.
+
+## Choosing an agent type
+
+The MCP server sends coding agents workflow instructions during MCP initialization and requires an
+explicit `agentType` when creating an agent. Coding agents should inspect the user's application and
+select the integration architecture before calling `get_or_create_agent`:
+
+- `static`: No-code agent with identity, instructions, and greeting stored in Orbitali. It makes no
+  application server calls and does not support custom tools.
+- `http`: Prompt and greeting stored in Orbitali. Each custom tool calls its own HTTPS endpoint,
+  which suits applications that expose independent APIs for actions and lookups.
+- `webhook`: One `serverUrl` receives `agent:tool-call` events and can also provide per-call prompts
+  and greetings through `agent:assistant-request` events.
+
+Agent type is immutable after creation. Static and HTTP agents use static prompts; only webhook
+agents support dynamic prompts and greetings.
 
 ## Running locally
 
 After installing from npm:
 
 ```bash
-ORBITALI_API_KEY=sk_your_key bunx @orbitali/mcp
+ORBITALI_API_KEY=orb_sk_REPLACE_LOCALLY bunx @orbitali/mcp
 ```
 
 From a local checkout of this repository:
 
 ```bash
-ORBITALI_API_KEY=sk_your_key bun run dev
+ORBITALI_API_KEY=orb_sk_REPLACE_LOCALLY bun run dev
 ```
 
 ## Running remotely
@@ -66,14 +108,33 @@ Remote MCP clients can connect to:
 https://mcp.orbitali.ai/mcp
 ```
 
-Pass your Orbitali API key as an HTTP header:
+OAuth-capable clients discover account linking automatically after deployment. Legacy clients may continue to pass an Orbitali API key as an HTTP header:
 
 ```text
-Authorization: Bearer sk_your_key
+Authorization: Bearer orb_sk_REPLACE_LOCALLY
 ```
 
 The hosted MCP process does not store or ship an Orbitali API key. Each request is authorized with
 the key supplied by the MCP client.
+
+## Kubernetes secret setup
+
+Copy `infra/k8s/mcp/secrets.example.yaml` to `infra/k8s/mcp/secrets.yaml`
+(ignored by Git). Set `stringData.MCP_EXCHANGE_SECRET` to the same private
+value configured on the API, then apply the secret before the deployment:
+
+```bash
+rtk kubectl apply -f infra/k8s/mcp/secrets.yaml
+rtk kubectl apply -k infra/k8s/mcp
+```
+
+The secret is applied separately so the tracked Kustomize configuration works
+without the local secrets file. After changing an existing secret, restart the
+deployment to load the updated environment variable:
+
+```bash
+rtk kubectl rollout restart deployment/orbitali-mcp -n orbitali
+```
 
 ## Coding-agent configuration
 
@@ -84,7 +145,7 @@ The server is launched by your coding agent over stdio. Point the agent at the p
 
 ```bash
 claude mcp add orbitali \
-  --env ORBITALI_API_KEY=sk_your_key \
+  --env ORBITALI_API_KEY=orb_sk_REPLACE_LOCALLY \
   -- bunx @orbitali/mcp
 ```
 
@@ -97,7 +158,7 @@ Or add it to `.mcp.json`:
       "command": "bunx",
       "args": ["@orbitali/mcp"],
       "env": {
-        "ORBITALI_API_KEY": "sk_your_key"
+        "ORBITALI_API_KEY": "orb_sk_REPLACE_LOCALLY"
       }
     }
   }
@@ -113,7 +174,7 @@ Or add it to `.mcp.json`:
       "command": "bunx",
       "args": ["@orbitali/mcp"],
       "env": {
-        "ORBITALI_API_KEY": "sk_your_key",
+        "ORBITALI_API_KEY": "orb_sk_REPLACE_LOCALLY",
         "ORBITALI_API_BASE_URL": "https://api.orbitali.ai"
       }
     }
@@ -142,6 +203,31 @@ of truth; `ensure_agent_tools` matches existing tools by exact name.
 
 ### Inbound SIP
 
-When the platform has SIP enabled, use `save_sip_connection` to create a credential-authenticated or IPv4-allowlisted connection, `add_sip_number` to link an E.164 number, and `assign_phone_number` to choose its agent. `list_sip_connections` distinguishes applied configuration from a verified call. Use `rotate_sip_password` to replace credentials, or update with `enabled: false` to disable new calls. Outbound SIP, REGISTER and transfers are not supported. IP ranges cannot overlap across connections, even disabled ones.
+When the platform has SIP enabled, use `save_sip_connection` to create a credential-authenticated or IPv4-allowlisted connection, `add_sip_number` to link an E.164 number, and `assign_phone_number` to choose its agent. `list_sip_connections` distinguishes applied configuration from a verified call. Use `rotate_sip_password` to replace credentials, or update with `enabled: false` to disable new calls. These tools manage inbound settings; configure SIP handoff routes in the dashboard (see prerequisites below). REGISTER is not supported. Updates replace inbound settings: list the connection first and preserve its authentication mode, allowlist and enabled state unless intentionally changing them. IP ranges cannot overlap across connections, even disabled ones.
 
-Passwords appear only on creation/rotation. Hand them securely to the operator and do not persist them in agent prompts or logs.
+Passwords may appear on creation, rotation, or authentication-mode changes. Hand them securely to the operator and do not persist them in agent prompts or logs.
+
+### Inspect before updating an agent
+
+Call `list_agents`, then `get_agent({ agentId })` before editing an existing agent.
+The response contains `agent` (including `updatedAt`) and `promptConfig` (including
+identity, instructions, prompt/greeting modes, and greetings). `promptConfig` is
+`null` when no prompt is stored. Dynamic prompts are not resolved and no webhook
+is invoked. `serverHeaders` and `serverSecret` are omitted; do not clear or replace
+credentials when patching unrelated settings. Pass `agent.updatedAt` as
+`expectedUpdatedAt` to `patch_agent`, and read back with `get_agent` afterward.
+Use the separate list tools for custom tools, MCP assignments, knowledge, and phones.
+
+This tool requires the API deployment that provides `GET /public/v1/agents/:id`.
+Deploy that endpoint before using this MCP release; older APIs cannot supply the
+stored prompt through `list_agents`.
+
+### SIP handoff prerequisites
+
+`assign_phone_number` accepts an E.164 `handoffPhoneNumber` for an existing SIP number. This sets the destination; it does not configure an outbound trunk. Configure the SIP connection's `outbound` route in the Orbitali dashboard: PBX host/port, UDP/TCP transport, optional independent outbound credentials and an authorized E.164 caller ID. Wait for provisioning to be applied before placing a new call. Use the SIP tools above for inbound connection provisioning; outbound routes are configured in the dashboard.
+
+With the matching platform/gateway release, `transfer_call` becomes available only when the connection has an applied outbound route and a handoff destination. Asterisk waits up to 30 seconds for an answer; unsuccessful transfers retain the agent conversation. On answer, the AI session ends and Asterisk bridges caller and human until either hangs up. Call completion/AI usage stop at handoff. Do not promise original caller-ID preservation, extension dialing, REFER, attended transfers, TLS or outbound REGISTER. Leave transfers disabled until the customer's PBX/trunk is configured and tested; never place credentials in prompts or logs.
+
+Call details may include `transcriptionStatus` (`processing`, `complete`, or `incomplete`). When processing, fetch the call again after finalization before treating its transcript as complete. A null or absent status means the legacy transcription path did not track completion.
+
+Outbound creation returns the latest stored status (`active`, `completed`, or `failed`). If the outcome is uncertain, the API may return `202` with a null `providerCallId`; `status: "unknown"` means persistence could not be read. Keep the returned call ID for reconciliation and do not automatically redial.

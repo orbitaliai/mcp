@@ -31,6 +31,11 @@ spec:
               value: /mcp
             - name: ORBITALI_API_BASE_URL
               value: https://api.orbitali.ai
+            - name: MCP_EXCHANGE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: orbitali-mcp-secrets
+                  key: MCP_EXCHANGE_SECRET
           readinessProbe:
             httpGet:
               path: /healthz
