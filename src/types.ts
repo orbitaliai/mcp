@@ -243,7 +243,7 @@ export const phoneNumberSchema = z.object({
   friendlyName: z.string().min(1),
   status: z.enum(["claimed", "available", "released", "suspended"]),
   source: z.enum(["managed", "user"]),
-  provider: z.enum(["telnyx", "twilio"]),
+  provider: z.enum(["telnyx", "twilio", "sip"]),
   setupStatus: z.enum(["configured", "setup_required", "pending_verification"]),
   assignedAgentId: z.uuid().nullable(),
   assignedAgentName: z.string().nullable(),
@@ -375,6 +375,27 @@ export const agentLogsResponseSchema = z.object({
   })
 });
 export type AgentLogsResponse = z.infer<typeof agentLogsResponseSchema>;
+
+export const sipConnectionInputSchema = z.object({
+  displayLabel: z.string().trim().min(1).max(80),
+  authMode: z.enum(["credentials", "ip"]),
+  sourceCidrs: z.array(z.string().trim().pipe(z.union([z.ipv4(), z.cidrv4()]))).max(32).default([]),
+  enabled: z.boolean().default(true)
+}).strict().superRefine((value, ctx) => {
+  if (value.authMode === "ip" && value.sourceCidrs.length === 0)
+    ctx.addIssue({ code: "custom", message: "IP authentication requires an allowlist", path: ["sourceCidrs"] });
+  if (value.authMode === "credentials" && value.sourceCidrs.length !== 0)
+    ctx.addIssue({ code: "custom", message: "Credential authentication cannot include an IP allowlist", path: ["sourceCidrs"] });
+});
+export type SipConnectionInput = z.input<typeof sipConnectionInputSchema>;
+export type SipConnection = z.output<typeof sipConnectionInputSchema> & {
+  id: string;
+  username: string;
+  destination: string;
+  revision: string;
+  provisioningStatus: "pending" | "applied" | "failed";
+  verifiedAt: string | null;
+};
 
 export const createOutboundCallRequestSchema = z.object({
   agentId: z.uuid(),

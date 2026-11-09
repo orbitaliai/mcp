@@ -1,4 +1,7 @@
 export const toolScopes: Record<string, readonly string[]> = {
+  list_sip_connections: ["telephony:read"],
+  save_sip_connection: ["telephony:write"], rotate_sip_password: ["telephony:write"],
+  delete_sip_connection: ["telephony:write"], add_sip_number: ["telephony:write"],
   delete_agent: ["agents:write"],
   list_agents: ["agents:read"], get_agent: ["agents:read"], list_agent_tools: ["agents:read"],
   list_mcp_integrations: ["integrations:read"], list_agent_mcp_tools: ["agents:read"],
