@@ -291,7 +291,7 @@ export function createServer(client: OrbitaliClient): McpServer {
     {
       ...toolMetadata("create_outbound_call"),
       title: "Create outbound call",
-      description: "Place a real outbound phone call with an active agent. Provide the destination E.164 number and a per-call greeting. Specify fromNumberId when multiple usable Telnyx numbers are assigned. Only call when explicitly requested by the user; do not automatically retry an ambiguous timeout.",
+      description: "Place a real outbound phone call with an active agent. Provide the destination E.164 number and a per-call greeting. Specify fromNumberId when multiple usable Telnyx or Twilio numbers are assigned. Only call when explicitly requested by the user; do not automatically retry an ambiguous timeout.",
       inputSchema: createOutboundCallRequestSchema
     },
     (input) => runTool(() => client.createOutboundCall(input))
