@@ -225,3 +225,7 @@ With the matching platform/gateway release, `transfer_call` becomes available on
 Call details may include `transcriptionStatus` (`processing`, `complete`, or `incomplete`). When processing, fetch the call again after finalization before treating its transcript as complete. A null or absent status means the legacy transcription path did not track completion.
 
 Outbound creation returns the latest stored status (`active`, `completed`, or `failed`). If the outcome is uncertain, the API may return `202` with a null `providerCallId`; `status: "unknown"` means persistence could not be read. Keep the returned call ID for reconciliation and do not automatically redial.
+
+### Regional voice sessions
+
+`create_realtime_session` returns the WebSocket URL selected for the organization’s voice runtime region. Pass `websocketUrl` to the caller unchanged, including its hostname, path, and token. Do not reconstruct it from the API base URL or assume a fixed agent hostname. Changing the organization region affects new calls; the response contract is unchanged.
