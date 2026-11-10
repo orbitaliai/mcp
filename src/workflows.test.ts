@@ -710,3 +710,18 @@ describe("unassignPhoneNumber", () => {
     expect(result).toEqual({ phoneNumberId: assignedNumber.phoneNumberId, assignedPhoneNumbers: [] });
   });
 });
+
+test("getOrCreateAgent does not reuse an agent in a different explicit region", async () => {
+  let createdRegion: unknown;
+  const client = {
+    listAgents: async () => [makeAgent({ region: "us-west" })],
+    createAgent: async (request: { region?: unknown }) => { createdRegion = request.region; return { id: "new-agent" }; }
+  } as unknown as OrbitaliClient;
+  for (const region of ["eu", null] as const) {
+    const result = await getOrCreateAgent(client, createAgentInput({ region }));
+    expect(result.created).toBe(true);
+    expect(createdRegion).toBe(region);
+  }
+  expect((await getOrCreateAgent(client, createAgentInput({ region: "us-west" }))).created).toBe(false);
+  expect((await getOrCreateAgent(client, createAgentInput())).created).toBe(false);
+});

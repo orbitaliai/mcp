@@ -231,3 +231,7 @@ With the matching platform/gateway release, `transfer_call` becomes available on
 Call details may include `transcriptionStatus` (`processing`, `complete`, or `incomplete`). When processing, fetch the call again after finalization before treating its transcript as complete. A null or absent status means the legacy transcription path did not track completion.
 
 Outbound creation returns the latest stored status (`active`, `completed`, or `failed`). If the outcome is uncertain, the API may return `202` with a null `providerCallId`; `status: "unknown"` means persistence could not be read. Keep the returned call ID for reconciliation and do not automatically redial.
+
+### Agent runtime region
+
+`get_or_create_agent` and `patch_agent` accept `region`: `eu`, `us-east`, `us-west`, or `null` to inherit the organization default. Omitting it on a patch preserves the current override. Agent responses expose the override as `region`. Reuse only matches the requested region when one is supplied. EU selection may return `RUNTIME_REGION_ROLLOUT_PENDING` until the platform rollout is enabled.

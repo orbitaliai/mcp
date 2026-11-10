@@ -267,6 +267,7 @@ export function listAgentLogs(client: OrbitaliClient, input: ListAgentLogsInput)
 function isSameAgent(agent: Agent, request: CreateAgentRequest): boolean {
   return (
     agent.name === request.name &&
+    (request.region === undefined || (agent.region ?? null) === request.region) &&
     agent.agentType === request.agentType &&
     agent.language === request.language &&
     agent.voiceName === request.voiceName &&
