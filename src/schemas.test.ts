@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getOrCreateAgentInputSchema, uploadKnowledgeDocumentInputSchema } from "./schemas";
+import { getOrCreateAgentInputSchema, patchAgentInputSchema, uploadKnowledgeDocumentInputSchema } from "./schemas";
 import { agentMcpToolSelectionSchema, agentToolInputSchema, callSummarySchema, mcpIntegrationSchema } from "./types";
 
 const agentId = "11111111-1111-4111-8111-111111111111";
@@ -232,5 +232,20 @@ describe("uploadKnowledgeDocumentInputSchema", () => {
         })
       ]);
     }
+  });
+});
+
+describe("agent runtime region", () => {
+  test("preserves explicit regions and null through create and patch validation", () => {
+    for (const region of ["eu", "us-east", "us-west", null] as const) {
+      expect(getOrCreateAgentInputSchema.parse({ ...validAgentInput("static"), region }).region).toBe(region);
+      expect(patchAgentInputSchema.parse({ agentId, expectedUpdatedAt: "2026-11-10T00:00:00.000Z", region }).region).toBe(region);
+    }
+  });
+  test("preserves omission and rejects unknown regions", () => {
+    const patch = { agentId, expectedUpdatedAt: "2026-11-10T00:00:00.000Z" };
+    expect(patchAgentInputSchema.parse(patch)).not.toHaveProperty("region");
+    expect(getOrCreateAgentInputSchema.parse(validAgentInput("static"))).not.toHaveProperty("region");
+    expect(patchAgentInputSchema.safeParse({ ...patch, region: "unknown" }).success).toBe(false);
   });
 });
