@@ -201,6 +201,12 @@ dashboard-only endpoints. Phone number assignment, call history, and agent logs 
 buying or claiming numbers still happens in the dashboard. The public REST API remains the source
 of truth; `ensure_agent_tools` matches existing tools by exact name.
 
+### Inbound SIP
+
+When the platform has SIP enabled, use `save_sip_connection` to create a credential-authenticated or IPv4-allowlisted connection, `add_sip_number` to link an E.164 number, and `assign_phone_number` to choose its agent. `list_sip_connections` distinguishes applied configuration from a verified call. Use `rotate_sip_password` to replace credentials, or update with `enabled: false` to disable new calls. These tools manage inbound settings; configure SIP handoff routes in the dashboard (see prerequisites below). REGISTER is not supported. Updates replace inbound settings: list the connection first and preserve its authentication mode, allowlist and enabled state unless intentionally changing them. IP ranges cannot overlap across connections, even disabled ones.
+
+Passwords may appear on creation, rotation, or authentication-mode changes. Hand them securely to the operator and do not persist them in agent prompts or logs.
+
 ### Inspect before updating an agent
 
 Call `list_agents`, then `get_agent({ agentId })` before editing an existing agent.
@@ -218,7 +224,7 @@ stored prompt through `list_agents`.
 
 ### SIP handoff prerequisites
 
-`assign_phone_number` accepts an E.164 `handoffPhoneNumber` for an existing SIP number. This sets the destination; it does not configure an outbound trunk. Configure the SIP connection's `outbound` route in the Orbitali dashboard: PBX host/port, UDP/TCP transport, optional independent outbound credentials and an authorized E.164 caller ID. Wait for provisioning to be applied before placing a new call. This MCP package does not currently expose SIP connection provisioning tools.
+`assign_phone_number` accepts an E.164 `handoffPhoneNumber` for an existing SIP number. This sets the destination; it does not configure an outbound trunk. Configure the SIP connection's `outbound` route in the Orbitali dashboard: PBX host/port, UDP/TCP transport, optional independent outbound credentials and an authorized E.164 caller ID. Wait for provisioning to be applied before placing a new call. Use the SIP tools above for inbound connection provisioning; outbound routes are configured in the dashboard.
 
 With the matching platform/gateway release, `transfer_call` becomes available only when the connection has an applied outbound route and a handoff destination. Asterisk waits up to 30 seconds for an answer; unsuccessful transfers retain the agent conversation. On answer, the AI session ends and Asterisk bridges caller and human until either hangs up. Call completion/AI usage stop at handoff. Do not promise original caller-ID preservation, extension dialing, REFER, attended transfers, TLS or outbound REGISTER. Leave transfers disabled until the customer's PBX/trunk is configured and tested; never place credentials in prompts or logs.
 

@@ -1,4 +1,5 @@
-import { createOutboundCallRequestSchema } from "./types";
+import { z } from "zod";
+import { createOutboundCallRequestSchema, sipConnectionInputSchema } from "./types";
 import { toolMetadata } from "./authorization";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -330,6 +331,50 @@ export function createServer(client: OrbitaliClient): McpServer {
     },
     (input) => runTool(() => listAgentLogs(client, input))
   );
+
+  server.registerTool("list_sip_connections",
+    {
+      ...toolMetadata("list_sip_connections"),
+      title: "List SIP connections",
+      description: "List account-scoped SIP destinations and provisioning status. Passwords are never included."
+    },
+    () => runTool(() => client.listSipConnections()));
+
+  server.registerTool("save_sip_connection",
+    {
+      ...toolMetadata("save_sip_connection"),
+      title: "Create or update SIP connection",
+      description: "Configure inbound SIP with credentials or non-overlapping IPv4 allowlists. Updates replace inbound settings; first list the connection and preserve its authMode, sourceCidrs and enabled values. Set enabled=false to disable. A new password is returned only on creation or authentication-mode changes; pass it securely to the user and never place it in prompts or logs.",
+      inputSchema: sipConnectionInputSchema.safeExtend({ id: z.uuid().optional() })
+    },
+    ({ id, ...input }) => runTool(() => client.saveSipConnection(input, id)));
+
+  server.registerTool("rotate_sip_password",
+    {
+      ...toolMetadata("rotate_sip_password"),
+      title: "Rotate SIP password",
+      description: "Replace the SIP password. The new password is shown once; the old password stops working after provisioning applies. Pass it securely to the user.",
+      inputSchema: z.object({ id: z.uuid() })
+    },
+    ({ id }) => runTool(() => client.rotateSipConnection(id)));
+
+  server.registerTool("delete_sip_connection",
+    {
+      ...toolMetadata("delete_sip_connection"),
+      title: "Delete SIP connection",
+      description: "Delete the connection and its linked numbers.",
+      inputSchema: z.object({ id: z.uuid() })
+    },
+    ({ id }) => runTool(() => client.deleteSipConnection(id)));
+
+  server.registerTool("add_sip_number",
+    {
+      ...toolMetadata("add_sip_number"),
+      title: "Add SIP number",
+      description: "Add an E.164 number to a SIP connection. Then use assign_phone_number to select its agent. Calls route by authenticated connection and called number.",
+      inputSchema: z.object({ connectionId: z.uuid(), phoneNumber: z.string().regex(/^\+[1-9]\d{1,14}$/) })
+    },
+    input => runTool(() => client.addSipNumber(input)));
 
   return server;
 }

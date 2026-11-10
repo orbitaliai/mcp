@@ -132,3 +132,80 @@ async function connect(fetchImpl?: FetchLike): Promise<void> {
   await server.connect(serverTransport);
   await client.connect(clientTransport);
 }
+
+describe("SIP tools", () => {
+  const id = "10000000-0000-4000-8000-000000000001";
+
+  test("executes the complete SIP lifecycle with defaults and one-time credentials", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const response = { connection: { id }, password: "synthetic-one-time-password" };
+    await connect(async (url, init) => {
+      requests.push({ url, init });
+      return Response.json(response);
+    });
+    const operations = [
+      { name: "list_sip_connections", arguments: {} },
+      { name: "save_sip_connection", arguments: { displayLabel: " SIP ", authMode: "credentials" } },
+      { name: "save_sip_connection", arguments: { id, displayLabel: "SIP", authMode: "ip", sourceCidrs: ["192.0.2.1", "198.51.100.0/24"], enabled: false } },
+      { name: "rotate_sip_password", arguments: { id } },
+      { name: "add_sip_number", arguments: { connectionId: id, phoneNumber: "+34910000001" } },
+      { name: "delete_sip_connection", arguments: { id } }
+    ];
+    for (const operation of operations) {
+      const result = await client!.callTool(operation);
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toEqual(response);
+    }
+    expect(requests.map(r => r.init?.method)).toEqual(["GET", "POST", "PUT", "POST", "POST", "DELETE"]);
+    expect(requests.map(r => r.url)).toEqual([
+      "connections", "connections", `connections/${id}`, `connections/${id}/rotate`, "numbers", `connections/${id}`
+    ].map(path => "https://api.example.com/public/v1/telephony/sip/" + path));
+    expect(JSON.parse(String(requests[1]!.init?.body))).toEqual({
+      displayLabel: "SIP", authMode: "credentials", sourceCidrs: [], enabled: true
+    });
+    expect(JSON.parse(String(requests[2]!.init?.body))).toEqual({
+      displayLabel: "SIP", authMode: "ip", sourceCidrs: ["192.0.2.1", "198.51.100.0/24"], enabled: false
+    });
+  });
+
+  test("rejects malformed inputs and incompatible authentication settings before fetching", async () => {
+    const requests: string[] = [];
+    await connect(async url => { requests.push(url); return Response.json({}); });
+    const invalidConnections = [
+      { authMode: "ip", sourceCidrs: [] },
+      { authMode: "ip", sourceCidrs: ["not-an-ip"] },
+      { authMode: "ip", sourceCidrs: ["256.1.2.3"] },
+      { authMode: "ip", sourceCidrs: ["192.0.2.1/33"] },
+      { authMode: "ip", sourceCidrs: ["::1"] },
+      { authMode: "ip", sourceCidrs: Array(33).fill("192.0.2.1") },
+      { authMode: "credentials", sourceCidrs: ["192.0.2.1"] }
+    ];
+    for (const input of invalidConnections) {
+      const result = await client!.callTool({ name: "save_sip_connection", arguments: { displayLabel: "SIP", ...input } });
+      expect(result.isError).toBe(true);
+    }
+    for (const operation of [
+      { name: "save_sip_connection", arguments: { id: "invalid", displayLabel: "SIP", authMode: "credentials" } },
+      { name: "rotate_sip_password", arguments: { id: "invalid" } },
+      { name: "delete_sip_connection", arguments: { id: "invalid" } },
+      { name: "add_sip_number", arguments: { connectionId: id, phoneNumber: "910000001" } }
+    ]) {
+      expect((await client!.callTool(operation)).isError).toBe(true);
+    }
+    expect(requests).toHaveLength(0);
+  });
+
+  test("reports allowlist conflicts without retrying", async () => {
+    let count = 0;
+    await connect(async () => {
+      count++;
+      return Response.json({ error: "Allowlist overlaps another connection", code: "SIP_ALLOWLIST_OVERLAP" }, { status: 409 });
+    });
+    const result = await client!.callTool({ name: "save_sip_connection", arguments: {
+      displayLabel: "SIP", authMode: "ip", sourceCidrs: ["192.0.2.0/24"]
+    } });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({ status: 409, code: "SIP_ALLOWLIST_OVERLAP" });
+    expect(count).toBe(1);
+  });
+});
