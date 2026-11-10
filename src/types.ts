@@ -25,7 +25,10 @@ export const agentTypeSchema = z
   );
 export type AgentType = z.infer<typeof agentTypeSchema>;
 
+export const runtimeRegionSchema = z.enum(["eu", "us-east", "us-west"]);
+
 export const agentSchema = z.object({
+  region: runtimeRegionSchema.nullable().optional(),
   id: z.uuid(),
   name: z.string().min(1),
   status: agentStatusSchema,
@@ -189,6 +192,7 @@ export const agentPhoneNumberAssignmentSchema = z.object({
 export type AgentPhoneNumberAssignment = z.infer<typeof agentPhoneNumberAssignmentSchema>;
 
 export const agentServerFieldsSchema = z.object({
+  region: runtimeRegionSchema.nullable().optional().describe("Voice runtime override. eu, us-east, or us-west; null inherits the organization default. Omit on updates to preserve the current override."),
   name: z.string().trim().min(1, "Name is required").max(120),
   language: z.string().trim().min(2).max(16),
   voiceName: z.string().trim().min(1).max(80),

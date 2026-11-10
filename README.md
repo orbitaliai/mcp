@@ -225,3 +225,7 @@ With the matching platform/gateway release, `transfer_call` becomes available on
 Call details may include `transcriptionStatus` (`processing`, `complete`, or `incomplete`). When processing, fetch the call again after finalization before treating its transcript as complete. A null or absent status means the legacy transcription path did not track completion.
 
 Outbound creation returns the latest stored status (`active`, `completed`, or `failed`). If the outcome is uncertain, the API may return `202` with a null `providerCallId`; `status: "unknown"` means persistence could not be read. Keep the returned call ID for reconciliation and do not automatically redial.
+
+### Agent voice region
+
+Agent creation and updates accept `region: "eu" | "us-east" | "us-west" | null`. A null override inherits the organization’s default voice region; an omitted update preserves the current override. `get_or_create_agent` includes the override in its reuse comparison. Regions apply to new browser, Twilio, and Telnyx calls; active calls keep their original destination and SIP remains unchanged. EU uses the platform’s configured European runtime endpoint.

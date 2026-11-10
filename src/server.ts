@@ -132,7 +132,7 @@ export function createServer(client: OrbitaliClient): McpServer {
       ...toolMetadata("get_or_create_agent"),
       title: "Get or create agent",
       description:
-        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, and serverUrl. Select agentType from the application architecture: static for no-code fixed behavior without custom tools, http for independent per-tool HTTP endpoints, or webhook for one event endpoint and optional dynamic prompts. To use connected MCP tools, call list_mcp_integrations first and pass the desired selections in mcpTools. Set reuseExisting to false to always create.",
+        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, serverUrl, and region. Select agentType from the application architecture: static for no-code fixed behavior without custom tools, http for independent per-tool HTTP endpoints, or webhook for one event endpoint and optional dynamic prompts. To use connected MCP tools, call list_mcp_integrations first and pass the desired selections in mcpTools. Set reuseExisting to false to always create.",
       inputSchema: getOrCreateAgentInputSchema
     },
     (input) => runTool(() => getOrCreateAgent(client, input))
