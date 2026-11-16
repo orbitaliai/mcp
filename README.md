@@ -237,3 +237,27 @@ Outbound creation returns the latest stored status (`active`, `completed`, or `f
 Agent creation and updates accept `region: "eu" | "us-east" | "us-west" | null`. A null override inherits the organization’s default voice region; an omitted update preserves the current override. `get_or_create_agent` includes the override in its reuse comparison. Regions apply to new browser, Twilio, and Telnyx calls; active calls keep their original destination and SIP remains unchanged. EU uses the platform’s configured European runtime endpoint.
 
 EU selection may return HTTP 503 with `RUNTIME_REGION_ROLLOUT_PENDING` until the platform has drained old API replicas and enabled `ENABLE_EU_RUNTIME_REGION_WRITES=true`.
+
+## Mews hotel integration
+
+Connect Mews in the Orbitali dashboard under **Integrations → Mews** using the
+client token and a single-property access token for the selected demo or production
+environment. Keep these credentials out of prompts and MCP tool arguments.
+Production credentials require Mews certification; demo data must be fictional.
+
+Then call `list_mcp_integrations` and select the exact returned server ID and tool
+names with `configure_agent_mcp_tools` (or `get_or_create_agent.mcpTools`). The
+connection offers configuration, services, room and age categories, rates,
+availability, quotes, exact-email guest lookup, booking-number lookup, guest
+creation, reservation creation and cancellation. The optional dashboard setup
+creates a draft hotel agent with these tools enabled.
+
+Use the property's timezone and service boundaries when converting dates to UTC.
+Include additional expenses in quoted totals and check capacity separately.
+Verify caller ownership before disclosing reservation details or cancellation,
+confirm writes explicitly, and explain cancellation fees. An `OUTCOME_UNKNOWN`
+result requires checking Mews before retrying; never blindly repeat a booking.
+Reservation changes and unsupported policies should be referred to hotel staff.
+
+See the [Mews Connector API](https://docs.mews.com/connector-api) and Orbitali's
+`samples/mews-hotel` example for a local mock workflow.
