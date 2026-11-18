@@ -209,3 +209,21 @@ describe("SIP tools", () => {
     expect(count).toBe(1);
   });
 });
+
+ test("agent handoff configuration uses scoped endpoints and rejects duplicate destinations before fetching", async () => {
+  const agentId = "10000000-0000-4000-8000-000000000001";
+  const handoff = {targetAgentId:"10000000-0000-4000-8000-000000000002",description:"Bookings"};
+  const requests: Array<{url:string;init?:RequestInit}> = [];
+  await connect(async (url,init) => { requests.push({url,init}); return Response.json([handoff]); });
+  const tools = (await client!.listTools()).tools;
+  expect(tools.find(t=>t.name === "list_agent_handoffs")?.annotations?.readOnlyHint).toBe(true);
+  const result = await client!.callTool({name:"configure_agent_handoffs",arguments:{agentId,handoffs:[handoff]}});
+  expect(result.isError).not.toBe(true);
+  expect(requests[0]?.url).toBe(`https://api.example.com/public/v1/agents/${agentId}/handoffs`);
+  expect(requests[0]?.init?.method).toBe("PUT");
+  expect(JSON.parse(String(requests[0]?.init?.body))).toEqual([handoff]);
+  await client!.callTool({name:"configure_agent_handoffs",arguments:{agentId,handoffs:[handoff,handoff]}});
+  expect(requests).toHaveLength(1);
+  await client!.callTool({name:"list_agent_handoffs",arguments:{agentId}});
+  expect(requests[1]?.init?.method).toBe("GET");
+ });

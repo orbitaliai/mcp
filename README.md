@@ -237,3 +237,15 @@ Outbound creation returns the latest stored status (`active`, `completed`, or `f
 Agent creation and updates accept `region: "eu" | "us-east" | "us-west" | null`. A null override inherits the organization’s default voice region; an omitted update preserves the current override. `get_or_create_agent` includes the override in its reuse comparison. Regions apply to new browser, Twilio, and Telnyx calls; active calls keep their original destination and SIP remains unchanged. EU uses the platform’s configured European runtime endpoint.
 
 EU selection may return HTTP 503 with `RUNTIME_REGION_ROLLOUT_PENDING` until the platform has drained old API replicas and enabled `ENABLE_EU_RUNTIME_REGION_WRITES=true`.
+
+### Entry agents and specialists
+
+Use `list_agents` to identify active specialists, then `configure_agent_handoffs`
+to replace an entry agent's allowed destinations. Supply `agentId` and a `handoffs`
+array of `{ "targetAgentId": "...", "description": "When this specialist should take over" }`.
+Targets must belong to the same organization and use the same effective runtime region.
+Only the entry agent needs a phone number. Each handoff retains the call and carries
+bounded context to a fresh specialist session. Return routes are explicit; calls
+allow at most eight handoffs. `list_agent_handoffs` reads the configuration.
+The platform's built-in `handoff_to_agent` tool performs live handoffs; do not create
+an HTTP tool with that name. Context is transient and is not stored in handoff history.

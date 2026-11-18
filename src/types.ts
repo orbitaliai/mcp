@@ -132,7 +132,9 @@ export const agentToolSchema = z.object({
 });
 export type AgentTool = z.infer<typeof agentToolSchema>;
 
-export const agentToolInputSchema = agentToolSchema.omit({ id: true });
+export const agentToolInputSchema = agentToolSchema.omit({ id: true }).extend({
+  name: agentToolSchema.shape.name.refine(name => name !== "handoff_to_agent", "handoff_to_agent is a reserved platform tool")
+});
 export type AgentToolInput = z.infer<typeof agentToolInputSchema>;
 
 export const mcpIntegrationToolSchema = z.looseObject({
@@ -310,6 +312,7 @@ export const callSummarySchema = z.object({
 export type CallSummary = z.infer<typeof callSummarySchema>;
 
 export const callMessageSchema = z.object({
+  agentId: z.uuid().nullable().optional(),
   id: z.uuid(),
   role: z.string().min(1),
   content: z.string(),
@@ -318,6 +321,7 @@ export const callMessageSchema = z.object({
 export type CallMessage = z.infer<typeof callMessageSchema>;
 
 export const callToolInvocationSchema = z.object({
+  agentId: z.uuid().nullable().optional(),
   id: z.uuid(),
   agentToolId: z.uuid().nullable(),
   toolName: z.string().min(1),
@@ -330,6 +334,7 @@ export const callToolInvocationSchema = z.object({
 export type CallToolInvocation = z.infer<typeof callToolInvocationSchema>;
 
 export const llmUsageSchema = z.object({
+  agentId: z.uuid().nullable().optional(),
   id: z.uuid(),
   model: z.string().min(1),
   promptTokens: z.number().int().nonnegative(),
@@ -345,6 +350,10 @@ export const llmUsageSchema = z.object({
 export type LlmUsage = z.infer<typeof llmUsageSchema>;
 
 export const callDetailSchema = callSummarySchema.safeExtend({
+  handoffs: z.array(z.object({
+    sequence: z.number().int().positive(), sourceAgentId: z.uuid().nullable(), targetAgentId: z.uuid().nullable(),
+    sourceAgentName: z.string().nullable().optional(), targetAgentName: z.string().nullable().optional(), occurredAt: z.iso.datetime()
+  })).optional(),
   transcriptionStatus: z.enum(["processing", "complete", "incomplete"]).nullable().optional(),
   summary: z.string().nullable(),
   messages: z.array(callMessageSchema),

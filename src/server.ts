@@ -60,6 +60,24 @@ export const SERVER_VERSION = packageJson.version;
 export function createServer(client: OrbitaliClient): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: SERVER_INSTRUCTIONS });
 
+  server.registerTool("list_agent_handoffs", {
+    ...toolMetadata("list_agent_handoffs"),
+    title: "List agent handoffs",
+    description: "List this agent's allowed specialist destinations and routing descriptions.",
+    inputSchema: z.object({ agentId: z.uuid() })
+  }, ({ agentId }) => runTool(() => client.listAgentHandoffs(agentId)));
+
+  server.registerTool("configure_agent_handoffs", {
+    ...toolMetadata("configure_agent_handoffs"),
+    title: "Configure agent handoffs",
+    description: "Replace allowed specialist destinations for an agent. Targets must be other active agents in the same organization and runtime region. Describe when each specialist should take over. Pass an empty array to remove all destinations. Only the entry agent needs a phone number; return routes must be configured explicitly.",
+    inputSchema: z.object({
+      agentId: z.uuid(),
+      handoffs: z.array(z.object({ targetAgentId: z.uuid(), description: z.string().trim().min(1).max(500) }).strict()).max(20)
+        .refine(rows => new Set(rows.map(r => r.targetAgentId)).size === rows.length, "Duplicate destination")
+    })
+  }, ({ agentId, handoffs }) => runTool(() => client.setAgentHandoffs(agentId, handoffs)));
+
   server.registerTool(
     "list_agents",
     {
