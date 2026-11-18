@@ -240,6 +240,8 @@ EU selection may return HTTP 503 with `RUNTIME_REGION_ROLLOUT_PENDING` until the
 
 ### Entry agents and specialists
 
+Both `list_agent_handoffs` and `configure_agent_handoffs` require the companion [platform handoff API deployment](https://github.com/orbitaliai/platform/pull/364). Agent-to-agent transfers require the Agency plan. Saved routes are retained but unavailable after a downgrade.
+
 Use `list_agents` to identify active specialists, then `configure_agent_handoffs`
 to replace an entry agent's allowed destinations. Supply `agentId` and a `handoffs`
 array of `{ "targetAgentId": "...", "description": "When this specialist should take over" }`.
