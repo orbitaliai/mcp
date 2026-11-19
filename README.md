@@ -232,6 +232,10 @@ Call details may include `transcriptionStatus` (`processing`, `complete`, or `in
 
 Outbound creation returns the latest stored status (`active`, `completed`, or `failed`). If the outcome is uncertain, the API may return `202` with a null `providerCallId`; `status: "unknown"` means persistence could not be read. Keep the returned call ID for reconciliation and do not automatically redial.
 
+### Regional voice sessions
+
+`create_realtime_session` returns the WebSocket URL selected for the agent’s effective voice runtime region (its override or the organization’s default). Pass `websocketUrl` to the caller unchanged, including its hostname, path, and token. Do not reconstruct it from the API base URL or assume a fixed agent hostname. Changing the organization region affects new calls; the response contract is unchanged.
+
 ### Agent voice region
 
 Agent creation and updates accept `region: "eu" | "us-east" | "us-west" | null`. A null override inherits the organization’s default voice region; an omitted update preserves the current override. `get_or_create_agent` includes the override in its reuse comparison. Regions apply to new browser, Twilio, and Telnyx calls; active calls keep their original destination and SIP remains unchanged. EU uses the platform’s configured European runtime endpoint.
