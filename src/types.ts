@@ -440,3 +440,11 @@ export const createOutboundCallResponseSchema = z.object({
 });
 
 export type CreateOutboundCallResponse = z.infer<typeof createOutboundCallResponseSchema>;
+
+export const workflowSchema = z.object({ startingAgentId: z.uuid().nullable() });
+export type Workflow = z.infer<typeof workflowSchema>;
+export const saveWorkflowRequestSchema = z.object({
+  startingAgentId: z.uuid().transform(id => id.toLowerCase()).nullable(),
+  baseline: z.uuid().transform(id => id.toLowerCase()).nullable()
+}).strict();
+export type SaveWorkflowRequest = z.infer<typeof saveWorkflowRequestSchema>;

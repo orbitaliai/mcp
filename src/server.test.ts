@@ -227,3 +227,35 @@ describe("SIP tools", () => {
   await client!.callTool({name:"list_agent_handoffs",arguments:{agentId}});
   expect(requests[1]?.init?.method).toBe("GET");
  });
+
+describe("workflow tools", () => {
+  const id = "10000000-0000-4000-8000-000000000001";
+  test("registers scopes, validates required nullable UUIDs, and preserves null", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    await connect(async (url, init) => { requests.push({ url, init }); return Response.json({ startingAgentId: null }); });
+    const tools = (await client!.listTools()).tools;
+    for (const [name, scope, readOnly] of [["get_workflow", "agents:read", true], ["save_workflow", "agents:write", false]] as const) {
+      const tool = tools.find(t => t.name === name);
+      expect(tool?.annotations?.readOnlyHint).toBe(readOnly);
+      expect(tool?._meta).toMatchObject({ securitySchemes: [{ type: "oauth2", scopes: [scope] }] });
+    }
+    expect(tools.find(t => t.name === "save_workflow")?.inputSchema.required).toEqual(["startingAgentId", "baseline"]);
+    expect((await client!.callTool({ name: "get_workflow", arguments: {} })).structuredContent).toEqual({ startingAgentId: null });
+    for (const args of [{}, { startingAgentId: null }, { baseline: null }, { startingAgentId: "bad", baseline: null }, { startingAgentId: null, baseline: "bad" }, { startingAgentId: null, baseline: null, extra: true }]) {
+      expect((await client!.callTool({ name: "save_workflow", arguments: args })).isError).toBe(true);
+    }
+    expect(requests).toHaveLength(1);
+    for (const args of [{ startingAgentId: id, baseline: null }, { startingAgentId: null, baseline: id }, { startingAgentId: null, baseline: null }]) {
+      expect((await client!.callTool({ name: "save_workflow", arguments: args })).structuredContent).toEqual({ startingAgentId: null });
+      expect(JSON.parse(String(requests.at(-1)?.init?.body))).toEqual(args);
+    }
+  });
+  test("propagates structured conflicts without retries", async () => {
+    let calls = 0;
+    await connect(async () => { calls++; return Response.json({ error: "Changed", code: "AGENT_HANDOFF_SAVE_CONFLICT" }, { status: 409 }); });
+    const result = await client!.callTool({ name: "save_workflow", arguments: { startingAgentId: id, baseline: null } });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toEqual({ error: "Changed", status: 409, code: "AGENT_HANDOFF_SAVE_CONFLICT" });
+    expect(calls).toBe(1);
+  });
+});

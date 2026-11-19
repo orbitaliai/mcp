@@ -21,6 +21,10 @@ Creation rules:
 - Before patching an existing agent, call get_agent to read its current instructions, prompt/greeting modes, and agent.updatedAt. Preserve unrelated fields and use agent.updatedAt as expectedUpdatedAt. get_agent omits webhook credentials; leave credential fields out of patches unless explicitly changing them.
 - Use list_agents before get_or_create_agent when existing-agent context matters. Use returned updatedAt as expectedUpdatedAt for patch_agent.
 
+Workflow configuration requires the Agency plan and at least two agents. There is one workflow per organization: a nullable startingAgentId; connections are the existing agent handoffs.
+Use list_agents and get_or_create_agent to find or reuse/create agents. Agents start as drafts; use get_agent and patch_agent to activate intended participants only when authorized. Use list_agent_handoffs to inspect each source and configure_agent_handoffs to configure connections. configure_agent_handoffs replaces ALL destinations for that source; preserve wanted destinations and configure return routes explicitly. An empty array removes all destinations.
+Call get_workflow before save_workflow. Pass both startingAgentId (an active agent in this organization, or null to clear) and baseline (the startingAgentId just read, including null). A 409 AGENT_HANDOFF_SAVE_CONFLICT means another save won: read again and reconcile with the user; never silently retry with a new baseline or overwrite newer changes. Saving the starting agent does not change handoffs or phone assignments.
+
 Security:
 - Keep the Orbitali API key on the server; never expose it to browser code.
 - When using a webhook serverSecret, verify x-orbitali-signature against the raw request body before parsing it.`;

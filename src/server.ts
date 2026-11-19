@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createOutboundCallRequestSchema, sipConnectionInputSchema } from "./types";
+import { createOutboundCallRequestSchema, sipConnectionInputSchema, saveWorkflowRequestSchema } from "./types";
 import { toolMetadata } from "./authorization";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -59,6 +59,19 @@ export const SERVER_VERSION = packageJson.version;
 
 export function createServer(client: OrbitaliClient): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: SERVER_INSTRUCTIONS });
+
+  server.registerTool("get_workflow", {
+    ...toolMetadata("get_workflow"),
+    title: "Get workflow",
+    description: "Read the organization's startingAgentId (nullable). Requires Agency and at least two agents. Connections are the existing agent handoffs. Retain startingAgentId as baseline for save_workflow."
+  }, () => runTool(() => client.getWorkflow()));
+
+  server.registerTool("save_workflow", {
+    ...toolMetadata("save_workflow"),
+    title: "Save workflow",
+    description: "Save the organization's starting agent. Requires Agency and at least two agents. startingAgentId must be an active agent in this organization, or null to clear. Both startingAgentId and baseline are required nullable UUIDs; baseline is the previously read startingAgentId. On conflict, read again and reconcile with the user; never automatically retry with a newer baseline. Configure connections with configure_agent_handoffs. Does not change phone assignments.",
+    inputSchema: saveWorkflowRequestSchema
+  }, input => runTool(() => client.saveWorkflow(input)));
 
   server.registerTool("list_agent_handoffs", {
     ...toolMetadata("list_agent_handoffs"),
