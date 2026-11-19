@@ -305,6 +305,24 @@ describe("OrbitaliClient", () => {
   });
 });
 
+test("SIP client keeps account-scoped public paths and request shapes", async () => {
+  const { fetchImpl, calls } = mockFetch({ id: "sip-id" }, 200);
+  const client = new OrbitaliClient(config, fetchImpl);
+  const input = { displayLabel: "SIP", authMode: "credentials" as const, sourceCidrs: [], enabled: true };
+  await client.listSipConnections();
+  await client.saveSipConnection(input);
+  await client.saveSipConnection({ ...input, enabled: false }, "sip-id");
+  await client.rotateSipConnection("sip-id");
+  await client.addSipNumber({ connectionId: "sip-id", phoneNumber: "+34910000001" });
+  await client.deleteSipConnection("sip-id");
+  expect(calls.map(c => c.init?.method)).toEqual(["GET", "POST", "PUT", "POST", "POST", "DELETE"]);
+  expect(calls.map(c => c.url)).toEqual([
+    "connections", "connections", "connections/sip-id", "connections/sip-id/rotate", "numbers", "connections/sip-id"
+  ].map(path => "https://api.example.com/public/v1/telephony/sip/" + path));
+  expect(calls[2]?.init?.body).toBe(JSON.stringify({ ...input, enabled: false }));
+  expect(calls[3]?.url).toEndWith("/connections/sip-id/rotate");
+});
+
 test("outbound call sends the explicit per-call parameters", async () => {
   const result = { callId: crypto.randomUUID(), providerCallId: "provider-id", status: "active" as const };
   const { fetchImpl, calls } = mockFetch(result, 201);
@@ -351,4 +369,16 @@ describe("call response validation", () => {
     const detailClient = new OrbitaliClient(config, mockFetch({ ...summary, ...detailFields }, 200).fetchImpl);
     await expect(detailClient.getCall(callSummary.id)).rejects.toThrow("Billable minutes");
   });
+});
+
+test("SIP client accepts omitted defaulted fields and encodes connection IDs", async () => {
+  const { fetchImpl, calls } = mockFetch({}, 200);
+  const client = new OrbitaliClient(config, fetchImpl);
+  await client.saveSipConnection({ displayLabel: "SIP", authMode: "credentials" });
+  await client.saveSipConnection({ displayLabel: "SIP", authMode: "credentials" }, "a/b");
+  await client.rotateSipConnection("a/b");
+  await client.deleteSipConnection("a/b");
+  expect(calls.slice(1).map(c => c.url)).toEqual([
+    "connections/a%2Fb", "connections/a%2Fb/rotate", "connections/a%2Fb"
+  ].map(path => "https://api.example.com/public/v1/telephony/sip/" + path));
 });

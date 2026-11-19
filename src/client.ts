@@ -1,6 +1,8 @@
 import { callDetailSchema, callSummarySchema } from "./types";
 import type { OrbitaliMcpConfig } from "./config";
 import type {
+  SipConnection,
+  SipConnectionInput,
   CreateOutboundCallRequest,
   CreateOutboundCallResponse,
   Agent,
@@ -127,6 +129,14 @@ export class OrbitaliClient {
     return this.request<McpIntegration[]>("GET", "/public/v1/mcp/servers");
   }
 
+  listAgentHandoffs(agentId: string): Promise<{ targetAgentId: string; description: string }[]> {
+    return this.request("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/handoffs`);
+  }
+
+  setAgentHandoffs(agentId: string, handoffs: { targetAgentId: string; description: string }[]): Promise<{ targetAgentId: string; description: string }[]> {
+    return this.request("PUT", `/public/v1/agents/${encodeURIComponent(agentId)}/handoffs`, handoffs);
+  }
+
   listAgentMcpTools(agentId: string): Promise<AgentMcpTool[]> {
     return this.request<AgentMcpTool[]>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/mcp-tools`);
   }
@@ -241,6 +251,22 @@ export class OrbitaliClient {
 
   listAgentLogs(agentId: string, params: ListAgentLogsParams = {}): Promise<AgentLogsResponse> {
     return this.request<AgentLogsResponse>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/logs${toQueryString(params)}`);
+  }
+
+  listSipConnections(): Promise<SipConnection[]> {
+    return this.request("GET", "/public/v1/telephony/sip/connections");
+  }
+  saveSipConnection(input: SipConnectionInput, id?: string): Promise<{ connection: SipConnection; password?: string }> {
+    return this.request(id ? "PUT" : "POST", "/public/v1/telephony/sip/connections" + (id ? "/" + encodeURIComponent(id) : ""), input);
+  }
+  rotateSipConnection(id: string): Promise<{ connection: SipConnection; password?: string }> {
+    return this.request("POST", `/public/v1/telephony/sip/connections/${encodeURIComponent(id)}/rotate`, {});
+  }
+  deleteSipConnection(id: string): Promise<{ id: string }> {
+    return this.request("DELETE", `/public/v1/telephony/sip/connections/${encodeURIComponent(id)}`);
+  }
+  addSipNumber(input: { connectionId: string; phoneNumber: string }): Promise<{ id: string }> {
+    return this.request("POST", "/public/v1/telephony/sip/numbers", input);
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {

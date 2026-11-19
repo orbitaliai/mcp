@@ -2,6 +2,9 @@ import { z } from "zod";
 
 z.config({ jitless: true });
 
+export const backgroundSoundSchema = z.enum(["none", "keyboard", "typing"]);
+export const ambientSoundSchema = z.enum(["none", "office1", "office2", "office"]);
+
 export const toolRuntimeMetadataSchema = z.enum([
   "callId",
   "sessionId",
@@ -25,7 +28,10 @@ export const agentTypeSchema = z
   );
 export type AgentType = z.infer<typeof agentTypeSchema>;
 
+export const runtimeRegionSchema = z.enum(["eu", "us-east", "us-west"]);
+
 export const agentSchema = z.object({
+  region: runtimeRegionSchema.nullable().optional(),
   id: z.uuid(),
   name: z.string().min(1),
   status: agentStatusSchema,
@@ -41,7 +47,10 @@ export const agentSchema = z.object({
   knowledgeDocumentCount: z.number().int().nonnegative(),
   callsToday: z.number().int().nonnegative(),
   successRate: z.number().nonnegative(),
-  backgroundSound: z.string(),
+  backgroundSound: backgroundSoundSchema,
+  ambientSound: ambientSoundSchema.default("none"),
+  ambientSoundVolume: z.number().min(0).max(1).default(0.25),
+  ambientSoundDucking: z.boolean().default(true),
   updatedAt: z.iso.datetime()
 });
 export type Agent = z.infer<typeof agentSchema>;
@@ -129,7 +138,9 @@ export const agentToolSchema = z.object({
 });
 export type AgentTool = z.infer<typeof agentToolSchema>;
 
-export const agentToolInputSchema = agentToolSchema.omit({ id: true });
+export const agentToolInputSchema = agentToolSchema.omit({ id: true }).extend({
+  name: agentToolSchema.shape.name.refine(name => name !== "handoff_to_agent", "handoff_to_agent is a reserved platform tool")
+});
 export type AgentToolInput = z.infer<typeof agentToolInputSchema>;
 
 export const mcpIntegrationToolSchema = z.looseObject({
@@ -189,6 +200,7 @@ export const agentPhoneNumberAssignmentSchema = z.object({
 export type AgentPhoneNumberAssignment = z.infer<typeof agentPhoneNumberAssignmentSchema>;
 
 export const agentServerFieldsSchema = z.object({
+  region: runtimeRegionSchema.nullable().optional().describe("Voice runtime override. eu, us-east, or us-west; null inherits the organization default. Omit on updates to preserve the current override."),
   name: z.string().trim().min(1, "Name is required").max(120),
   language: z.string().trim().min(2).max(16),
   voiceName: z.string().trim().min(1).max(80),
@@ -199,9 +211,15 @@ export const agentServerFieldsSchema = z.object({
   serverSecret: z.string().trim().max(500).nullable(),
   handoffPhoneNumber: z.string().trim().max(32).nullable(),
   backgroundSound: z.preprocess(
-    (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
-    z.string().trim().max(50).default("none")
-  )
+    (val) => (typeof val === "string" ? val.trim() || undefined : val),
+    backgroundSoundSchema.default("none")
+  ),
+  ambientSound: z.preprocess(
+    (val) => (typeof val === "string" ? val.trim() || undefined : val),
+    ambientSoundSchema.default("none")
+  ),
+  ambientSoundVolume: z.number().min(0).max(1).default(0.25),
+  ambientSoundDucking: z.boolean().default(true)
 });
 
 export const agentCreateServerFieldsSchema = agentServerFieldsSchema.extend({
@@ -231,6 +249,8 @@ export const updateAgentServerFieldsSchema = agentServerFieldsSchema.extend({
 });
 
 export const patchAgentRequestSchema = updateAgentServerFieldsSchema.merge(agentPromptFieldsBaseSchema).partial().extend({
+  ambientSoundVolume: z.number().min(0).max(1).optional(),
+  ambientSoundDucking: z.boolean().optional(),
   // Optional defaulted arrays otherwise become [] during MCP validation.
   phoneNumberAssignments: agentServerFieldsSchema.shape.phoneNumberAssignments.removeDefault().optional(),
   expectedUpdatedAt: z.iso.datetime()
@@ -243,7 +263,7 @@ export const phoneNumberSchema = z.object({
   friendlyName: z.string().min(1),
   status: z.enum(["claimed", "available", "released", "suspended"]),
   source: z.enum(["managed", "user"]),
-  provider: z.enum(["telnyx", "twilio"]),
+  provider: z.enum(["telnyx", "twilio", "sip"]),
   setupStatus: z.enum(["configured", "setup_required", "pending_verification"]),
   assignedAgentId: z.uuid().nullable(),
   assignedAgentName: z.string().nullable(),
@@ -306,6 +326,7 @@ export const callSummarySchema = z.object({
 export type CallSummary = z.infer<typeof callSummarySchema>;
 
 export const callMessageSchema = z.object({
+  agentId: z.uuid().nullable().optional(),
   id: z.uuid(),
   role: z.string().min(1),
   content: z.string(),
@@ -314,6 +335,7 @@ export const callMessageSchema = z.object({
 export type CallMessage = z.infer<typeof callMessageSchema>;
 
 export const callToolInvocationSchema = z.object({
+  agentId: z.uuid().nullable().optional(),
   id: z.uuid(),
   agentToolId: z.uuid().nullable(),
   toolName: z.string().min(1),
@@ -326,6 +348,7 @@ export const callToolInvocationSchema = z.object({
 export type CallToolInvocation = z.infer<typeof callToolInvocationSchema>;
 
 export const llmUsageSchema = z.object({
+  agentId: z.uuid().nullable().optional(),
   id: z.uuid(),
   model: z.string().min(1),
   promptTokens: z.number().int().nonnegative(),
@@ -341,6 +364,10 @@ export const llmUsageSchema = z.object({
 export type LlmUsage = z.infer<typeof llmUsageSchema>;
 
 export const callDetailSchema = callSummarySchema.safeExtend({
+  handoffs: z.array(z.object({
+    sequence: z.number().int().positive(), sourceAgentId: z.uuid().nullable(), targetAgentId: z.uuid().nullable(),
+    sourceAgentName: z.string().nullable().optional(), targetAgentName: z.string().nullable().optional(), occurredAt: z.iso.datetime()
+  })).optional(),
   transcriptionStatus: z.enum(["processing", "complete", "incomplete"]).nullable().optional(),
   summary: z.string().nullable(),
   messages: z.array(callMessageSchema),
@@ -375,6 +402,27 @@ export const agentLogsResponseSchema = z.object({
   })
 });
 export type AgentLogsResponse = z.infer<typeof agentLogsResponseSchema>;
+
+export const sipConnectionInputSchema = z.object({
+  displayLabel: z.string().trim().min(1).max(80),
+  authMode: z.enum(["credentials", "ip"]),
+  sourceCidrs: z.array(z.string().trim().pipe(z.union([z.ipv4(), z.cidrv4()]))).max(32).default([]),
+  enabled: z.boolean().default(true)
+}).strict().superRefine((value, ctx) => {
+  if (value.authMode === "ip" && value.sourceCidrs.length === 0)
+    ctx.addIssue({ code: "custom", message: "IP authentication requires an allowlist", path: ["sourceCidrs"] });
+  if (value.authMode === "credentials" && value.sourceCidrs.length !== 0)
+    ctx.addIssue({ code: "custom", message: "Credential authentication cannot include an IP allowlist", path: ["sourceCidrs"] });
+});
+export type SipConnectionInput = z.input<typeof sipConnectionInputSchema>;
+export type SipConnection = z.output<typeof sipConnectionInputSchema> & {
+  id: string;
+  username: string;
+  destination: string;
+  revision: string;
+  provisioningStatus: "pending" | "applied" | "failed";
+  verifiedAt: string | null;
+};
 
 export const createOutboundCallRequestSchema = z.object({
   agentId: z.uuid(),

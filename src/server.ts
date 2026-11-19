@@ -1,4 +1,5 @@
-import { createOutboundCallRequestSchema } from "./types";
+import { z } from "zod";
+import { createOutboundCallRequestSchema, sipConnectionInputSchema } from "./types";
 import { toolMetadata } from "./authorization";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -58,6 +59,24 @@ export const SERVER_VERSION = packageJson.version;
 
 export function createServer(client: OrbitaliClient): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: SERVER_INSTRUCTIONS });
+
+  server.registerTool("list_agent_handoffs", {
+    ...toolMetadata("list_agent_handoffs"),
+    title: "List agent handoffs",
+    description: "List this agent's allowed specialist destinations and routing descriptions.",
+    inputSchema: z.object({ agentId: z.uuid() })
+  }, ({ agentId }) => runTool(() => client.listAgentHandoffs(agentId)));
+
+  server.registerTool("configure_agent_handoffs", {
+    ...toolMetadata("configure_agent_handoffs"),
+    title: "Configure agent handoffs",
+    description: "Replace allowed specialist destinations for an agent. Requires the Agency plan. Targets must be other active agents in the same organization and runtime region. Describe when each specialist should take over. Pass an empty array to remove all destinations. Only the entry agent needs a phone number; return routes must be configured explicitly.",
+    inputSchema: z.object({
+      agentId: z.uuid(),
+      handoffs: z.array(z.object({ targetAgentId: z.uuid().transform(id => id.toLowerCase()), description: z.string().trim().min(1).max(500).refine(value => !value.includes("\0"), "Description cannot contain NUL characters") }).strict()).max(20)
+        .refine(rows => new Set(rows.map(r => r.targetAgentId.toLowerCase())).size === rows.length, "Duplicate destination")
+    })
+  }, ({ agentId, handoffs }) => runTool(() => client.setAgentHandoffs(agentId, handoffs)));
 
   server.registerTool(
     "list_agents",
@@ -132,7 +151,7 @@ export function createServer(client: OrbitaliClient): McpServer {
       ...toolMetadata("get_or_create_agent"),
       title: "Get or create agent",
       description:
-        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, and serverUrl. Select agentType from the application architecture: static for no-code fixed behavior without custom tools, http for independent per-tool HTTP endpoints, or webhook for one event endpoint and optional dynamic prompts. To use connected MCP tools, call list_mcp_integrations first and pass the desired selections in mcpTools. Set reuseExisting to false to always create.",
+        "Create a voice agent, or reuse an existing one that matches name, agentType, language, voiceName, serverUrl, and region. Select agentType from the application architecture: static for no-code fixed behavior without custom tools, http for independent per-tool HTTP endpoints, or webhook for one event endpoint and optional dynamic prompts. To use connected MCP tools, call list_mcp_integrations first and pass the desired selections in mcpTools. Set reuseExisting to false to always create.",
       inputSchema: getOrCreateAgentInputSchema
     },
     (input) => runTool(() => getOrCreateAgent(client, input))
@@ -330,6 +349,50 @@ export function createServer(client: OrbitaliClient): McpServer {
     },
     (input) => runTool(() => listAgentLogs(client, input))
   );
+
+  server.registerTool("list_sip_connections",
+    {
+      ...toolMetadata("list_sip_connections"),
+      title: "List SIP connections",
+      description: "List account-scoped SIP destinations and provisioning status. Passwords are never included."
+    },
+    () => runTool(() => client.listSipConnections()));
+
+  server.registerTool("save_sip_connection",
+    {
+      ...toolMetadata("save_sip_connection"),
+      title: "Create or update SIP connection",
+      description: "Configure inbound SIP with credentials or non-overlapping IPv4 allowlists. Updates replace inbound settings; first list the connection and preserve its authMode, sourceCidrs and enabled values. Set enabled=false to disable. A new password is returned only on creation or authentication-mode changes; pass it securely to the user and never place it in prompts or logs.",
+      inputSchema: sipConnectionInputSchema.safeExtend({ id: z.uuid().optional() })
+    },
+    ({ id, ...input }) => runTool(() => client.saveSipConnection(input, id)));
+
+  server.registerTool("rotate_sip_password",
+    {
+      ...toolMetadata("rotate_sip_password"),
+      title: "Rotate SIP password",
+      description: "Replace the SIP password. The new password is shown once; the old password stops working after provisioning applies. Pass it securely to the user.",
+      inputSchema: z.object({ id: z.uuid() })
+    },
+    ({ id }) => runTool(() => client.rotateSipConnection(id)));
+
+  server.registerTool("delete_sip_connection",
+    {
+      ...toolMetadata("delete_sip_connection"),
+      title: "Delete SIP connection",
+      description: "Delete the connection and its linked numbers.",
+      inputSchema: z.object({ id: z.uuid() })
+    },
+    ({ id }) => runTool(() => client.deleteSipConnection(id)));
+
+  server.registerTool("add_sip_number",
+    {
+      ...toolMetadata("add_sip_number"),
+      title: "Add SIP number",
+      description: "Add an E.164 number to a SIP connection. Then use assign_phone_number to select its agent. Calls route by authenticated connection and called number.",
+      inputSchema: z.object({ connectionId: z.uuid(), phoneNumber: z.string().regex(/^\+[1-9]\d{1,14}$/) })
+    },
+    input => runTool(() => client.addSipNumber(input)));
 
   return server;
 }

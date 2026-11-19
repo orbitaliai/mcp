@@ -92,7 +92,7 @@ export function listKnowledgeDocuments(client: OrbitaliClient, agentId: string):
 
 /**
  * Reuses an existing agent when one matches on the identifying fields
- * (name, agentType, language, voiceName, serverUrl); otherwise creates a new
+ * (name, agentType, language, voiceName, serverUrl, region); otherwise creates a new
  * agent. Reuse can be disabled per call via `reuseExisting: false`.
  *
  * This is a client-side convenience workflow. The public API does not expose an
@@ -267,6 +267,7 @@ export function listAgentLogs(client: OrbitaliClient, input: ListAgentLogsInput)
 function isSameAgent(agent: Agent, request: CreateAgentRequest): boolean {
   return (
     agent.name === request.name &&
+    (agent.region ?? null) === (request.region ?? null) &&
     agent.agentType === request.agentType &&
     agent.language === request.language &&
     agent.voiceName === request.voiceName &&

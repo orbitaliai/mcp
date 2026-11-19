@@ -141,3 +141,32 @@ test("outbound calls require write scope and reach the protected API with explic
   expect((await response.json()).result.isError).not.toBe(true);
   expect(body).toEqual(args);
 });
+
+test("SIP tools enforce telephony scopes and route authorized calls to the protected API", async () => {
+  const id = "10000000-0000-4000-8000-000000000001";
+  const operations = [
+    { name: "list_sip_connections", arguments: {}, scope: "telephony:read", path: "connections", method: "GET" },
+    { name: "save_sip_connection", arguments: { displayLabel: "SIP", authMode: "credentials" }, scope: "telephony:write", path: "connections", method: "POST" },
+    { name: "rotate_sip_password", arguments: { id }, scope: "telephony:write", path: `connections/${id}/rotate`, method: "POST" },
+    { name: "delete_sip_connection", arguments: { id }, scope: "telephony:write", path: `connections/${id}`, method: "DELETE" },
+    { name: "add_sip_number", arguments: { connectionId: id, phoneNumber: "+34910000001" }, scope: "telephony:write", path: "numbers", method: "POST" }
+  ];
+  for (const operation of operations) {
+    const denied = fixture(operation.scope === "telephony:read" ? "telephony:write" : "telephony:read");
+    expect((await denied.handler(request("orb_oat_synthetic", "tools/call", operation))).status).toBe(403);
+    expect(denied.calls).toHaveLength(1);
+    const requests: string[] = [];
+    const handler = createHttpHandler(config, async (url, init) => {
+      if (url.endsWith("/oauth/mcp/exchange")) return Response.json({ access_token: "orb_mi_synthetic", scope: operation.scope });
+      requests.push(url);
+      expect(url).toBe(config.baseUrl + "/mcp-resource/v1/telephony/sip/" + operation.path);
+      expect(init?.method).toBe(operation.method);
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer orb_mi_synthetic");
+      return Response.json(operation.name === "list_sip_connections" ? [] : { id });
+    });
+    const response = await handler(request("orb_oat_synthetic", "tools/call", operation));
+    expect(response.status).toBe(200);
+    expect((await response.json()).result.isError).not.toBe(true);
+    expect(requests).toHaveLength(1);
+  }
+});

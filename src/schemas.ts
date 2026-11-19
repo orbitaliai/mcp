@@ -60,7 +60,7 @@ export const getOrCreateAgentInputSchema = agentCreateServerFieldsSchema
     reuseExisting: z
       .boolean()
       .default(true)
-      .describe("Reuse an existing agent that matches name, agentType, language, voiceName, and serverUrl."),
+      .describe("Reuse an existing agent that matches name, agentType, language, voiceName, serverUrl, and region."),
     mcpTools: z
       .array(mcpToolSelectionInputSchema)
       .max(200)
