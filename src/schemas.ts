@@ -29,6 +29,8 @@ const knowledgeFilePathSchema = z
   })
   .describe("Local path to a .txt, .md, or .pdf file to upload as multipart/form-data.");
 
+export const getAgentInputSchema = z.object({ agentId: agentIdSchema });
+
 export const listAgentToolsInputSchema = z.object({
   agentId: agentIdSchema
 });
@@ -58,7 +60,7 @@ export const getOrCreateAgentInputSchema = agentCreateServerFieldsSchema
     reuseExisting: z
       .boolean()
       .default(true)
-      .describe("Reuse an existing agent that matches name, agentType, language, voiceName, and serverUrl."),
+      .describe("Reuse an existing agent that matches name, agentType, language, voiceName, serverUrl, and region."),
     mcpTools: z
       .array(mcpToolSelectionInputSchema)
       .max(200)
@@ -83,6 +85,8 @@ export const updateAgentToolInputSchema = agentToolInputSchema.extend({
   agentId: agentIdSchema,
   toolId: z.uuid().describe("The Orbitali tool id (UUID).")
 });
+
+export const deleteAgentInputSchema = z.object({ agentId: agentIdSchema });
 
 export const deleteAgentToolInputSchema = z.object({
   agentId: agentIdSchema,

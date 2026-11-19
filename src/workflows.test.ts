@@ -110,7 +110,6 @@ function createAgentInput(overrides: Partial<GetOrCreateAgentInput> = {}): GetOr
     instructions: "Help the caller.",
     greetingType: "none",
     staticGreeting: null,
-    outboundGreeting: null,
     reuseExisting: true,
     ...overrides
   } as GetOrCreateAgentInput;
@@ -239,6 +238,17 @@ describe("getOrCreateAgent", () => {
 
     expect(result).toEqual({ agentId: "agent-42", created: false, matchedAgent: existing });
     expect(calls.createAgent).toHaveLength(0);
+  });
+
+  test("does not reuse an agent whose region override differs", async () => {
+    const { client, calls } = stubClient({
+      listAgents: async () => [makeAgent({ region: "us-west" })],
+      createAgent: async () => ({ id: "eu-agent" })
+    });
+    const result = await getOrCreateAgent(client, { ...createAgentInput(), region: "eu" });
+    expect(result.created).toBe(true);
+    expect(calls.createAgent).toHaveLength(1);
+    expect(calls.createAgent[0]).toMatchObject({ region: "eu" });
   });
 
   test("creates a new agent when nothing matches", async () => {

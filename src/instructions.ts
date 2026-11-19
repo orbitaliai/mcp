@@ -18,6 +18,7 @@ Creation rules:
 - An http tool needs its own toolUrl. A static agent cannot have custom tools.
 - Connected MCP tools can be assigned independently of custom tools; only select tools from an active integration returned by list_mcp_integrations.
 - Agents are created as drafts. Activate an agent with patch_agent only when the user wants it available for calls or realtime sessions.
+- Before patching an existing agent, call get_agent to read its current instructions, prompt/greeting modes, and agent.updatedAt. Preserve unrelated fields and use agent.updatedAt as expectedUpdatedAt. get_agent omits webhook credentials; leave credential fields out of patches unless explicitly changing them.
 - Use list_agents before get_or_create_agent when existing-agent context matters. Use returned updatedAt as expectedUpdatedAt for patch_agent.
 
 Security:

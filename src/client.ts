@@ -1,6 +1,12 @@
+import { callDetailSchema, callSummarySchema } from "./types";
 import type { OrbitaliMcpConfig } from "./config";
 import type {
+  SipConnection,
+  SipConnectionInput,
+  CreateOutboundCallRequest,
+  CreateOutboundCallResponse,
   Agent,
+  PublicAgentDetails,
   AgentAssignedPhoneNumber,
   AgentLogSeverity,
   AgentLogsResponse,
@@ -97,16 +103,22 @@ export interface RealtimeSessionResponse {
 export class OrbitaliClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
+  private readonly apiPrefix: string;
   private readonly fetchImpl: FetchLike;
 
-  constructor(config: OrbitaliMcpConfig, fetchImpl: FetchLike = fetch) {
+  constructor(config: OrbitaliMcpConfig | { accessToken: string; baseUrl: string; apiPrefix: "/mcp-resource/v1" }, fetchImpl: FetchLike = fetch) {
     this.baseUrl = config.baseUrl;
-    this.apiKey = config.apiKey;
+    this.apiKey = "accessToken" in config ? config.accessToken : config.apiKey;
+    this.apiPrefix = "apiPrefix" in config ? config.apiPrefix : "/public/v1";
     this.fetchImpl = fetchImpl;
   }
 
   listAgents(): Promise<Agent[]> {
     return this.request<Agent[]>("GET", "/public/v1/agents");
+  }
+
+  getAgent(agentId: string): Promise<PublicAgentDetails> {
+    return this.request<PublicAgentDetails>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}`);
   }
 
   listAgentTools(agentId: string): Promise<AgentTool[]> {
@@ -115,6 +127,14 @@ export class OrbitaliClient {
 
   listMcpIntegrations(): Promise<McpIntegration[]> {
     return this.request<McpIntegration[]>("GET", "/public/v1/mcp/servers");
+  }
+
+  listAgentHandoffs(agentId: string): Promise<{ targetAgentId: string; description: string }[]> {
+    return this.request("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/handoffs`);
+  }
+
+  setAgentHandoffs(agentId: string, handoffs: { targetAgentId: string; description: string }[]): Promise<{ targetAgentId: string; description: string }[]> {
+    return this.request("PUT", `/public/v1/agents/${encodeURIComponent(agentId)}/handoffs`, handoffs);
   }
 
   listAgentMcpTools(agentId: string): Promise<AgentMcpTool[]> {
@@ -143,6 +163,10 @@ export class OrbitaliClient {
       `/public/v1/agents/${encodeURIComponent(agentId)}/tools/${encodeURIComponent(toolId)}`,
       body
     );
+  }
+
+  deleteAgent(agentId: string): Promise<CreatedResponse> {
+    return this.request<CreatedResponse>("DELETE", `/public/v1/agents/${encodeURIComponent(agentId)}`);
   }
 
   deleteAgentTool(agentId: string, toolId: string): Promise<CreatedResponse> {
@@ -211,16 +235,38 @@ export class OrbitaliClient {
     );
   }
 
-  listCalls(params: ListCallsParams = {}): Promise<CallSummary[]> {
-    return this.request<CallSummary[]>("GET", `/public/v1/calls${toQueryString(params)}`);
+  createOutboundCall(body: CreateOutboundCallRequest): Promise<CreateOutboundCallResponse> {
+    return this.request<CreateOutboundCallResponse>("POST", "/public/v1/calls", body);
   }
 
-  getCall(callId: string): Promise<CallDetail> {
-    return this.request<CallDetail>("GET", `/public/v1/calls/${encodeURIComponent(callId)}`);
+  async listCalls(params: ListCallsParams = {}): Promise<CallSummary[]> {
+    const response = await this.request<unknown>("GET", `/public/v1/calls${toQueryString(params)}`);
+    return callSummarySchema.array().parse(response);
+  }
+
+  async getCall(callId: string): Promise<CallDetail> {
+    const response = await this.request<unknown>("GET", `/public/v1/calls/${encodeURIComponent(callId)}`);
+    return callDetailSchema.parse(response);
   }
 
   listAgentLogs(agentId: string, params: ListAgentLogsParams = {}): Promise<AgentLogsResponse> {
     return this.request<AgentLogsResponse>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/logs${toQueryString(params)}`);
+  }
+
+  listSipConnections(): Promise<SipConnection[]> {
+    return this.request("GET", "/public/v1/telephony/sip/connections");
+  }
+  saveSipConnection(input: SipConnectionInput, id?: string): Promise<{ connection: SipConnection; password?: string }> {
+    return this.request(id ? "PUT" : "POST", "/public/v1/telephony/sip/connections" + (id ? "/" + encodeURIComponent(id) : ""), input);
+  }
+  rotateSipConnection(id: string): Promise<{ connection: SipConnection; password?: string }> {
+    return this.request("POST", `/public/v1/telephony/sip/connections/${encodeURIComponent(id)}/rotate`, {});
+  }
+  deleteSipConnection(id: string): Promise<{ id: string }> {
+    return this.request("DELETE", `/public/v1/telephony/sip/connections/${encodeURIComponent(id)}`);
+  }
+  addSipNumber(input: { connectionId: string; phoneNumber: string }): Promise<{ id: string }> {
+    return this.request("POST", "/public/v1/telephony/sip/numbers", input);
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -245,7 +291,7 @@ export class OrbitaliClient {
       init.signal = controller.signal;
 
       try {
-        response = await this.fetchImpl(`${this.baseUrl}${path}`, init);
+        response = await this.fetchImpl(`${this.baseUrl}${path.replace(/^\/public\/v1/, this.apiPrefix)}`, { ...init, redirect: "error" });
       } finally {
         clearTimeout(timeout);
       }

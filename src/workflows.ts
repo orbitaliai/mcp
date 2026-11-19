@@ -15,6 +15,7 @@ import {
   createAgentRequestSchema,
   createKnowledgeDocumentRequestSchema,
   type Agent,
+  type PublicAgentDetails,
   type AgentAssignedPhoneNumber,
   type AgentLogsResponse,
   type AgentMcpTool,
@@ -61,6 +62,10 @@ export function listAgents(client: OrbitaliClient): Promise<Agent[]> {
   return client.listAgents();
 }
 
+export function getAgent(client: OrbitaliClient, agentId: string): Promise<PublicAgentDetails> {
+  return client.getAgent(agentId);
+}
+
 export function listAgentTools(client: OrbitaliClient, agentId: string): Promise<AgentTool[]> {
   return client.listAgentTools(agentId);
 }
@@ -87,7 +92,7 @@ export function listKnowledgeDocuments(client: OrbitaliClient, agentId: string):
 
 /**
  * Reuses an existing agent when one matches on the identifying fields
- * (name, agentType, language, voiceName, serverUrl); otherwise creates a new
+ * (name, agentType, language, voiceName, serverUrl, region); otherwise creates a new
  * agent. Reuse can be disabled per call via `reuseExisting: false`.
  *
  * This is a client-side convenience workflow. The public API does not expose an
@@ -169,6 +174,10 @@ export async function ensureAgentTools(client: OrbitaliClient, input: EnsureAgen
 export function updateAgentTool(client: OrbitaliClient, input: UpdateAgentToolInput): Promise<{ id: string }> {
   const { agentId, toolId, id: _id, ...tool } = input as UpdateAgentToolInput & { id?: string };
   return client.updateAgentTool(agentId, toolId, tool as AgentToolInput);
+}
+
+export function deleteAgent(client: OrbitaliClient, agentId: string): Promise<{ id: string }> {
+  return client.deleteAgent(agentId);
 }
 
 export function deleteAgentTool(client: OrbitaliClient, agentId: string, toolId: string): Promise<{ id: string }> {
@@ -258,6 +267,7 @@ export function listAgentLogs(client: OrbitaliClient, input: ListAgentLogsInput)
 function isSameAgent(agent: Agent, request: CreateAgentRequest): boolean {
   return (
     agent.name === request.name &&
+    (agent.region ?? null) === (request.region ?? null) &&
     agent.agentType === request.agentType &&
     agent.language === request.language &&
     agent.voiceName === request.voiceName &&

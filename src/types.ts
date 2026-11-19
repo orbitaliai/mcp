@@ -28,7 +28,10 @@ export const agentTypeSchema = z
   );
 export type AgentType = z.infer<typeof agentTypeSchema>;
 
+export const runtimeRegionSchema = z.enum(["eu", "us-east", "us-west"]);
+
 export const agentSchema = z.object({
+  region: runtimeRegionSchema.nullable().optional(),
   id: z.uuid(),
   name: z.string().min(1),
   status: agentStatusSchema,
@@ -64,7 +67,6 @@ export const agentPromptFieldsBaseSchema = z.object({
   instructions: z.string().trim().max(24000),
   greetingType: greetingTypeSchema,
   staticGreeting: z.string().trim().max(1000).nullable(),
-  outboundGreeting: z.string().trim().max(1000).nullable()
 });
 
 export const agentPromptFieldsSchema = agentPromptFieldsBaseSchema.superRefine((value, context) => {
@@ -85,6 +87,23 @@ export const agentPromptFieldsSchema = agentPromptFieldsBaseSchema.superRefine((
   }
 });
 export type AgentPromptFields = z.infer<typeof agentPromptFieldsSchema>;
+
+export const publicAgentDetailsSchema = z.object({
+  agent: agentSchema.omit({ serverHeaders: true, serverSecret: true }).extend({
+    aiIdentityDisclosureTemplateId: z.string(),
+    ambientSound: z.string(),
+    ambientSoundVolume: z.number(),
+    ambientSoundDucking: z.boolean()
+  }),
+  promptConfig: z.object({
+    promptType: promptTypeSchema,
+    identity: z.string(),
+    instructions: z.string(),
+    greetingType: greetingTypeSchema,
+    staticGreeting: z.string().nullable(),
+  }).nullable()
+});
+export type PublicAgentDetails = z.infer<typeof publicAgentDetailsSchema>;
 
 export const toolOnErrorSchema = z.enum(["return_error", "return_empty"]);
 export type ToolOnError = z.infer<typeof toolOnErrorSchema>;
@@ -119,7 +138,9 @@ export const agentToolSchema = z.object({
 });
 export type AgentTool = z.infer<typeof agentToolSchema>;
 
-export const agentToolInputSchema = agentToolSchema.omit({ id: true });
+export const agentToolInputSchema = agentToolSchema.omit({ id: true }).extend({
+  name: agentToolSchema.shape.name.refine(name => name !== "handoff_to_agent", "handoff_to_agent is a reserved platform tool")
+});
 export type AgentToolInput = z.infer<typeof agentToolInputSchema>;
 
 export const mcpIntegrationToolSchema = z.looseObject({
@@ -179,6 +200,7 @@ export const agentPhoneNumberAssignmentSchema = z.object({
 export type AgentPhoneNumberAssignment = z.infer<typeof agentPhoneNumberAssignmentSchema>;
 
 export const agentServerFieldsSchema = z.object({
+  region: runtimeRegionSchema.nullable().optional().describe("Voice runtime override. eu, us-east, or us-west; null inherits the organization default. Omit on updates to preserve the current override."),
   name: z.string().trim().min(1, "Name is required").max(120),
   language: z.string().trim().min(2).max(16),
   voiceName: z.string().trim().min(1).max(80),
@@ -229,6 +251,8 @@ export const updateAgentServerFieldsSchema = agentServerFieldsSchema.extend({
 export const patchAgentRequestSchema = updateAgentServerFieldsSchema.merge(agentPromptFieldsBaseSchema).partial().extend({
   ambientSoundVolume: z.number().min(0).max(1).optional(),
   ambientSoundDucking: z.boolean().optional(),
+  // Optional defaulted arrays otherwise become [] during MCP validation.
+  phoneNumberAssignments: agentServerFieldsSchema.shape.phoneNumberAssignments.removeDefault().optional(),
   expectedUpdatedAt: z.iso.datetime()
 });
 export type PatchAgentRequest = z.infer<typeof patchAgentRequestSchema>;
@@ -239,7 +263,7 @@ export const phoneNumberSchema = z.object({
   friendlyName: z.string().min(1),
   status: z.enum(["claimed", "available", "released", "suspended"]),
   source: z.enum(["managed", "user"]),
-  provider: z.enum(["telnyx", "twilio"]),
+  provider: z.enum(["telnyx", "twilio", "sip"]),
   setupStatus: z.enum(["configured", "setup_required", "pending_verification"]),
   assignedAgentId: z.uuid().nullable(),
   assignedAgentName: z.string().nullable(),
@@ -267,11 +291,42 @@ export const callSummarySchema = z.object({
   durationSeconds: z.number().int().nonnegative(),
   startedAt: z.iso.datetime(),
   toolInvocations: z.number().int().nonnegative(),
-  usageCostEur: z.number().nonnegative()
+  // Older API deployments return only usageCostEur. Never infer allocation from cost.
+  usageCostEur: z.number().nonnegative().optional(),
+  billableMinutes: z.number().nonnegative().optional(),
+  includedMinutes: z.number().nonnegative().optional(),
+  overageMinutes: z.number().nonnegative().optional(),
+  usageClassification: z.enum(["included", "overage", "split", "trial", "unallocated"]).optional()
+}).superRefine((value, context) => {
+  const { billableMinutes, includedMinutes, overageMinutes, usageClassification } = value;
+  const allocation = [billableMinutes, includedMinutes, overageMinutes, usageClassification];
+  if (allocation.every((field) => field === undefined) && value.usageCostEur !== undefined) {
+    return;
+  }
+  if (billableMinutes === undefined || includedMinutes === undefined || overageMinutes === undefined || usageClassification === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["billableMinutes"],
+      message: "Provide a complete minute allocation or a legacy usageCostEur"
+    });
+    return;
+  }
+  // The producer rounds each interval count to two decimals independently.
+  // Allow one hundredth of a minute plus floating-point noise in the sum.
+  const total = includedMinutes + overageMinutes;
+  const tolerance = 0.01 + Number.EPSILON * Math.max(1, billableMinutes, total) * 4;
+  if (Math.abs(billableMinutes - total) > tolerance) {
+    context.addIssue({
+      code: "custom",
+      path: ["billableMinutes"],
+      message: "Billable minutes must equal included plus overage minutes within rounding precision"
+    });
+  }
 });
 export type CallSummary = z.infer<typeof callSummarySchema>;
 
 export const callMessageSchema = z.object({
+  agentId: z.uuid().nullable().optional(),
   id: z.uuid(),
   role: z.string().min(1),
   content: z.string(),
@@ -280,6 +335,7 @@ export const callMessageSchema = z.object({
 export type CallMessage = z.infer<typeof callMessageSchema>;
 
 export const callToolInvocationSchema = z.object({
+  agentId: z.uuid().nullable().optional(),
   id: z.uuid(),
   agentToolId: z.uuid().nullable(),
   toolName: z.string().min(1),
@@ -292,6 +348,7 @@ export const callToolInvocationSchema = z.object({
 export type CallToolInvocation = z.infer<typeof callToolInvocationSchema>;
 
 export const llmUsageSchema = z.object({
+  agentId: z.uuid().nullable().optional(),
   id: z.uuid(),
   model: z.string().min(1),
   promptTokens: z.number().int().nonnegative(),
@@ -306,7 +363,12 @@ export const llmUsageSchema = z.object({
 });
 export type LlmUsage = z.infer<typeof llmUsageSchema>;
 
-export const callDetailSchema = callSummarySchema.extend({
+export const callDetailSchema = callSummarySchema.safeExtend({
+  handoffs: z.array(z.object({
+    sequence: z.number().int().positive(), sourceAgentId: z.uuid().nullable(), targetAgentId: z.uuid().nullable(),
+    sourceAgentName: z.string().nullable().optional(), targetAgentName: z.string().nullable().optional(), occurredAt: z.iso.datetime()
+  })).optional(),
+  transcriptionStatus: z.enum(["processing", "complete", "incomplete"]).nullable().optional(),
   summary: z.string().nullable(),
   messages: z.array(callMessageSchema),
   toolInvocationsLog: z.array(callToolInvocationSchema),
@@ -340,3 +402,41 @@ export const agentLogsResponseSchema = z.object({
   })
 });
 export type AgentLogsResponse = z.infer<typeof agentLogsResponseSchema>;
+
+export const sipConnectionInputSchema = z.object({
+  displayLabel: z.string().trim().min(1).max(80),
+  authMode: z.enum(["credentials", "ip"]),
+  sourceCidrs: z.array(z.string().trim().pipe(z.union([z.ipv4(), z.cidrv4()]))).max(32).default([]),
+  enabled: z.boolean().default(true)
+}).strict().superRefine((value, ctx) => {
+  if (value.authMode === "ip" && value.sourceCidrs.length === 0)
+    ctx.addIssue({ code: "custom", message: "IP authentication requires an allowlist", path: ["sourceCidrs"] });
+  if (value.authMode === "credentials" && value.sourceCidrs.length !== 0)
+    ctx.addIssue({ code: "custom", message: "Credential authentication cannot include an IP allowlist", path: ["sourceCidrs"] });
+});
+export type SipConnectionInput = z.input<typeof sipConnectionInputSchema>;
+export type SipConnection = z.output<typeof sipConnectionInputSchema> & {
+  id: string;
+  username: string;
+  destination: string;
+  revision: string;
+  provisioningStatus: "pending" | "applied" | "failed";
+  verifiedAt: string | null;
+};
+
+export const createOutboundCallRequestSchema = z.object({
+  agentId: z.uuid(),
+  toNumber: z.string().regex(/^\+[1-9]\d{1,14}$/),
+  fromNumberId: z.uuid().nullable().optional(),
+  greeting: z.string().trim().min(1).max(1000)
+});
+
+export type CreateOutboundCallRequest = z.infer<typeof createOutboundCallRequestSchema>;
+
+export const createOutboundCallResponseSchema = z.object({
+  callId: z.uuid(),
+  providerCallId: z.string().nullable(),
+  status: z.enum(["active", "completed", "failed", "unknown"])
+});
+
+export type CreateOutboundCallResponse = z.infer<typeof createOutboundCallResponseSchema>;

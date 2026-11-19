@@ -1,0 +1,12 @@
+{
+  "name": "orbitali-local",
+  "owner": {
+    "name": "Orbitali Systems SL"
+  },
+  "plugins": [
+    {
+      "name": "orbitali",
+      "source": "./orbitali"
+    }
+  ]
+}

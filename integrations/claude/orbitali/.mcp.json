@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "orbitali": {
+      "type": "http",
+      "url": "https://mcp.orbitali.ai/mcp",
+      "oauth": {
+        "clientId": "orbitali-claude-code",
+        "callbackPort": 3118
+      }
+    }
+  }
+}
