@@ -1,4 +1,4 @@
-import { callDetailSchema, callSummarySchema } from "./types";
+import { callDetailSchema, callSummarySchema, workflowSchema, saveWorkflowRequestSchema, type Workflow, type SaveWorkflowRequest } from "./types";
 import type { OrbitaliMcpConfig } from "./config";
 import type {
   SipConnection,
@@ -111,6 +111,14 @@ export class OrbitaliClient {
     this.apiKey = "accessToken" in config ? config.accessToken : config.apiKey;
     this.apiPrefix = "apiPrefix" in config ? config.apiPrefix : "/public/v1";
     this.fetchImpl = fetchImpl;
+  }
+
+  async getWorkflow(): Promise<Workflow> {
+    return workflowSchema.parse(await this.request("GET", "/public/v1/organization/workflow"));
+  }
+
+  async saveWorkflow(input: SaveWorkflowRequest): Promise<Workflow> {
+    return workflowSchema.parse(await this.request("PUT", "/public/v1/organization/workflow", saveWorkflowRequestSchema.parse(input)));
   }
 
   listAgents(): Promise<Agent[]> {

@@ -42,6 +42,10 @@ Create an API key in the Orbitali dashboard under **Settings → API keys**.
 | Tool                       | Description                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------------- |
 | `get_agent`                | Read settings, stored instructions, prompt/greeting modes, and `agent.updatedAt`; webhook credentials are omitted. |
+| `get_workflow`             | Read the organization's nullable starting agent. |
+| `save_workflow`            | Save or clear the starting agent using the previously read baseline. |
+| `list_agent_handoffs`      | Read a source agent's destinations. |
+| `configure_agent_handoffs` | Replace all destinations for a source agent. |
 | `list_agents`              | List the voice agents in the organization.                                                      |
 | `list_agent_tools`         | List the custom tools configured on an agent.                                                   |
 | `list_mcp_integrations`    | List connected MCP integrations and their available cached tools without exposing credentials. |
@@ -255,3 +259,19 @@ bounded context to a fresh specialist session. Return routes are explicit; calls
 allow at most eight handoffs. `list_agent_handoffs` reads the configuration.
 The platform's built-in `handoff_to_agent` tool performs live handoffs; do not create
 an HTTP tool with that name. Context is transient and is not stored in handoff history.
+
+## Organization workflow
+
+Workflow configuration requires the Agency plan and at least two agents. There is one workflow per organization: a nullable startingAgentId; connections are the existing agent handoffs.
+Use list_agents and get_or_create_agent to find or reuse/create agents. Agents start as drafts; use get_agent and patch_agent to activate intended participants only when authorized. Use list_agent_handoffs to inspect each source and configure_agent_handoffs to configure connections. configure_agent_handoffs replaces ALL destinations for that source; preserve wanted destinations and configure return routes explicitly. An empty array removes all destinations.
+Call get_workflow before save_workflow. Pass both startingAgentId (an active agent in this organization, or null to clear) and baseline (the startingAgentId just read, including null). A 409 AGENT_HANDOFF_SAVE_CONFLICT means another save won: read again and reconcile with the user; never silently retry with a new baseline or overwrite newer changes. Saving the starting agent does not change handoffs or phone assignments.
+
+`get_workflow` uses `GET /public/v1/organization/workflow` (`agents:read`).
+`save_workflow` uses `PUT /public/v1/organization/workflow` (`agents:write`).
+OAuth uses the same paths under `/mcp-resource/v1`. Deploy the companion platform workflow endpoints before using these tools.
+
+```json
+{ "startingAgentId": "10000000-0000-4000-8000-000000000001", "baseline": null }
+```
+
+Both fields are required nullable UUIDs. Successful reads and saves return `{ "startingAgentId": "..." }` or `{ "startingAgentId": null }`.

@@ -170,3 +170,27 @@ test("SIP tools enforce telephony scopes and route authorized calls to the prote
     expect(requests).toHaveLength(1);
   }
 });
+
+test("workflow tools enforce scopes before execution and use OAuth resource routes", async () => {
+  for (const operation of [
+    { name: "get_workflow", arguments: {}, scope: "agents:read", method: "GET" },
+    { name: "save_workflow", arguments: { startingAgentId: null, baseline: null }, scope: "agents:write", method: "PUT" }
+  ]) {
+    const denied = fixture(operation.scope === "agents:read" ? "agents:write" : "agents:read");
+    expect((await denied.handler(request("orb_oat_synthetic", "tools/call", operation))).status).toBe(403);
+    expect(denied.calls).toHaveLength(1);
+    const requests: string[] = [];
+    const handler = createHttpHandler(config, async (url, init) => {
+      if (url.endsWith("/oauth/mcp/exchange")) return Response.json({ access_token: "orb_mi_synthetic", scope: operation.scope });
+      requests.push(url);
+      expect(url).toBe(config.baseUrl + "/mcp-resource/v1/organization/workflow");
+      expect(init?.method).toBe(operation.method);
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer orb_mi_synthetic");
+      return Response.json({ startingAgentId: null });
+    });
+    const response = await handler(request("orb_oat_synthetic", "tools/call", operation));
+    expect(response.status).toBe(200);
+    expect((await response.json()).result.structuredContent).toEqual({ startingAgentId: null });
+    expect(requests).toHaveLength(1);
+  }
+});

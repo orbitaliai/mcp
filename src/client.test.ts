@@ -382,3 +382,20 @@ test("SIP client accepts omitted defaulted fields and encodes connection IDs", a
     "connections/a%2Fb", "connections/a%2Fb/rotate", "connections/a%2Fb"
   ].map(path => "https://api.example.com/public/v1/telephony/sip/" + path));
 });
+
+describe("workflow client", () => {
+  for (const oauth of [false, true]) {
+    test(`workflow requests preserve baseline with ${oauth ? "OAuth" : "API key"}`, async () => {
+      const requests: Array<{ url: string; init?: RequestInit }> = [];
+      const config = oauth ? { accessToken: "internal-token", baseUrl: "https://api.example.com", apiPrefix: "/mcp-resource/v1" as const } : { apiKey: "sk_test", baseUrl: "https://api.example.com" };
+      const api = new OrbitaliClient(config, async (url, init) => { requests.push({ url, init }); return Response.json({ startingAgentId: null }); });
+      expect(await api.getWorkflow()).toEqual({ startingAgentId: null });
+      expect(await api.saveWorkflow({ startingAgentId: null, baseline: null })).toEqual({ startingAgentId: null });
+      expect(requests.map(r => r.url)).toEqual(Array(2).fill(`https://api.example.com/${oauth ? "mcp-resource" : "public"}/v1/organization/workflow`));
+      expect(requests.map(r => r.init?.method)).toEqual(["GET", "PUT"]);
+      expect(requests[0]?.init?.body).toBeUndefined();
+      expect(requests[1]?.init?.body).toBe(JSON.stringify({ startingAgentId: null, baseline: null }));
+      expect(requests[1]?.init?.headers).toMatchObject({ Authorization: `Bearer ${oauth ? "internal-token" : "sk_test"}` });
+    });
+  }
+});
