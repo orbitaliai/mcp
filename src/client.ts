@@ -129,6 +129,14 @@ export class OrbitaliClient {
     return this.request<McpIntegration[]>("GET", "/public/v1/mcp/servers");
   }
 
+  listAgentHandoffs(agentId: string): Promise<{ targetAgentId: string; description: string }[]> {
+    return this.request("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/handoffs`);
+  }
+
+  setAgentHandoffs(agentId: string, handoffs: { targetAgentId: string; description: string }[]): Promise<{ targetAgentId: string; description: string }[]> {
+    return this.request("PUT", `/public/v1/agents/${encodeURIComponent(agentId)}/handoffs`, handoffs);
+  }
+
   listAgentMcpTools(agentId: string): Promise<AgentMcpTool[]> {
     return this.request<AgentMcpTool[]>("GET", `/public/v1/agents/${encodeURIComponent(agentId)}/mcp-tools`);
   }
