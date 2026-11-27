@@ -62,6 +62,7 @@ export const greetingTypeSchema = z.enum(["static", "dynamic", "none"]);
 export type GreetingType = z.infer<typeof greetingTypeSchema>;
 
 export const agentPromptFieldsBaseSchema = z.object({
+  useOrganizationSystemPrompt: z.boolean().optional(),
   promptType: promptTypeSchema,
   identity: z.string().trim().max(12000),
   instructions: z.string().trim().max(24000),
@@ -96,6 +97,7 @@ export const publicAgentDetailsSchema = z.object({
     ambientSoundDucking: z.boolean()
   }),
   promptConfig: z.object({
+    useOrganizationSystemPrompt: z.boolean().default(true),
     promptType: promptTypeSchema,
     identity: z.string(),
     instructions: z.string(),
